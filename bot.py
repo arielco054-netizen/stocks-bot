@@ -7,7 +7,7 @@ import pytz
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 
-# כאן אתה יכול להוסיף או להוריד איזה מניות שתרצה
+# כאן תוכל תמיד להוסיף או למחוק איזה מניות שתרצה בקלות
 TICKERS = [
     "AAPL",
     "TSLA",
@@ -22,20 +22,17 @@ TICKERS = [
     "PROK",
     "VOO",
     "BMR",
-    "META", # דוגמה למניה חדשה שהוספנו (פייסבוק)
-    "AMZN"  # דוגמה לעוד מניה (אמזון)
+    "META",
+    "AMZN"
 ]
 
 def get_stock_data():
-    # הגדרת אזור זמן ישראל ותאריך
     israel_tz = pytz.timezone('Asia/Jerusalem')
     current_time = datetime.now(israel_tz)
     date_str = current_time.strftime("%d/%m/%Y")
     time_str = current_time.strftime("%H:%M")
     
-    message = f"🔔 *עדכון מניות - {date_str}* 🔔\n"
-    message += f"🕒 שעה: {time_str}\n"
-    message += "➖➖➖➖➖➖➖➖➖➖\n\n"
+    message = f"🔔 סיכום יום מסחר | {date_str} ({time_str})\n\n"
 
     for ticker in TICKERS:
         try:
@@ -60,11 +57,9 @@ def get_stock_data():
             sign = "+" if change >= 0 else ""
             display_name = ticker.replace("-USD", "")
 
-            message += f"*{display_name}*\n"
-            message += f"💵 מחיר נוכחי: `{close_price:,.2f}$` {emoji_trend} `{sign}{change:.2f}%`\n"
-            message += f"📈 טווח יומי: `{low_price:,.2f}` - `{high_price:,.2f}`\n"
-            message += f"📊 נפח מסחר: `{volume:,}`\n"
-            message += "〰️〰️〰️〰️〰️〰️\n"
+            message += f"*{display_name}*: {close_price:,.2f} {emoji_trend} {sign}{change:.2f}%\n"
+            message += f"📈 גבוה: {high_price:,.2f} | 📉 נמוך: {low_price:,.2f}\n"
+            message += f"📊 נפח: {volume:,}\n\n"
         except Exception as e:
             print(f"Error fetching {ticker}: {e}")
 
