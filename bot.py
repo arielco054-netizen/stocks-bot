@@ -7,7 +7,7 @@ import pytz
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 
-# רשימת כל המניות המעודכנת והמלאה (ללא כפיולים)
+# רשימת כל המניות והנכסים המלאה
 TICKERS = [
     # אמריקה וטכנולוגיה
     "AAPL", "TSLA", "MSFT", "NVDA", "PLTR", "INTC", "PYPL", 
@@ -30,7 +30,6 @@ def get_stock_data():
     date_str = current_time.strftime("%d/%m/%Y")
     time_str = current_time.strftime("%H:%M:%S")
     
-    # זיהוי האם מדובר בעדכון פתיחה או סגירה לפי השעה
     hour = current_time.hour
     if hour < 15:
         header_title = "⏰ 3 שעות עד פתיחת המסחר בוול סטריט (זמן אמת)"
@@ -42,23 +41,21 @@ def get_stock_data():
     for ticker in TICKERS:
         try:
             stock = yf.Ticker(ticker)
-            todays_data = stock.history(period="2d")
+            # לוקחים נתונים של 5 ימים אחורה כדי לוודא שיש השוואה מדויקת לסגירה הקודמת
+            todays_data = stock.history(period="5d")
 
-            if todays_data.empty:
+            if todays_data.empty or len(todays_data) < 2:
                 continue
 
             close_price = todays_data["Close"].iloc[-1]
-            open_price = todays_data["Open"].iloc[-1] if "Open" in todays_data else close_price
-            high_price = todays_data["High"].max()
-            low_price = todays_data["Low"].min()
-            volume = int(todays_data["Volume"].iloc[-1]) if "Volume" in todays_data else 0
+            prev_close = todays_data["Close"].iloc[-2] # מחיר סגירה של יום המסחר הקודם
+            
+            high_price = todays_data["High"].iloc[-1]
+            low_price = todays_data["Low"].iloc[-1]
+            volume = int(todays_data["Volume"].iloc[-1])
 
-            if open_price > 0:
-                change = ((close_price - open_price) / open_price) * 100
-                diff = close_price - open_price
-            else:
-                change = 0.0
-                diff = 0.0
+            diff = close_price - prev_close
+            change = (diff / prev_close) * 100
 
             emoji_trend = "🟢" if change >= 0 else "🔴"
             status_text = "עולה" if change >= 0 else "יורד"
@@ -66,7 +63,7 @@ def get_stock_data():
             display_name = ticker.replace("-USD", "").replace("^", "")
 
             message += f"📊 *{display_name}*\n"
-            message += f"💵 מחיר/סגירה: `{close_price:,.2f}$`\n"
+            message += f"💵 מחיר: `{close_price:,.2f}$`\n"
             message += f"📊 שינוי: `{sign}{change:.2f}%` ({sign}{diff:,.2f}$)\n"
             message += f"🔼 גבוה: `{high_price:,.2f}` | 📉 נמוך: `{low_price:,.2f}`\n"
             message += f"📦 נפח: `{volume:,}`\n"
@@ -74,8 +71,6 @@ def get_stock_data():
             message += "〰️〰️〰️〰️〰️〰️\n"
         except Exception as e:
             print(f"Error fetching {ticker}: {e}")
-            display_name = ticker.replace("-USD", "").replace("^", "")
-            message += f"📊 *{display_name}*\n⚠️ שגיאה בטעינת נתונים\n〰️〰️〰️〰️〰️〰️\n"
 
     return message
 
