@@ -7,22 +7,51 @@ import pytz
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 
-# רשימת כל המניות והנכסים המלאה
-TICKERS = [
+# מילון המניות המלא הכולל שמות מדויקים בעברית ובאנגלית לכל נכס
+STOCKS_INFO = {
     # אמריקה וטכנולוגיה
-    "AAPL", "TSLA", "MSFT", "NVDA", "PLTR", "INTC", "PYPL", 
-    "GOOGL", "AMZN", "META", "NFLX",
+    "AAPL": {"en": "Apple Inc.", "he": "אפל"},
+    "TSLA": {"en": "Tesla Inc.", "he": "טסלה"},
+    "MSFT": {"en": "Microsoft Corporation", "he": "מיקרוסופט"},
+    "NVDA": {"en": "NVIDIA Corporation", "he": "אנבידיה"},
+    "PLTR": {"en": "Palantir Technologies Inc.", "he": "פלנטיר טכנולוגיות"},
+    "INTC": {"en": "Intel Corporation", "he": "אינטל"},
+    "PYPL": {"en": "PayPal Holdings Inc.", "he": "פייפאל"},
+    "GOOGL": {"en": "Alphabet Inc. (Google)", "he": "אלפאבית / גוגל"},
+    "AMZN": {"en": "Amazon.com Inc.", "he": "אמזון"},
+    "META": {"en": "Meta Platforms Inc.", "he": "מטא פלטפורמס"},
+    "NFLX": {"en": "Netflix Inc.", "he": "נטפליקס"},
+    
     # תעופה, ביטחון ותעשייה
-    "LMT", "BA", "WMT",
-    # פארמה ובריאות
-    "MRNA", "MRK", "TEVA.TA",
+    "LMT": {"en": "Lockheed Martin Corporation", "he": "לוקהיד מרטין"},
+    "BA": {"en": "The Boeing Company", "he": "בואינג"},
+    "WMT": {"en": "Walmart Inc.", "he": "ולמארט"},
+    
+    # פארמה, בריאות ומניות ישראליות
+    "MRNA": {"en": "Moderna Inc.", "he": "מודרנה"},
+    "MRK": {"en": "Merck & Co. Inc.", "he": "מרק"},
+    "TEVA.TA": {"en": "Teva Pharmaceutical Industries Ltd.", "he": "טבע תעשיות פרמצבטיות"},
+    
+    # מדד ישראלי
+    "1155324.TA": {"en": "IBI SAL (4A) Kosher TA-125 IL ETF", "he": "מדד ישראלי - קרן סל IBI כשרה ת\"א 125"},
+    
     # סייבר, פינטק וטכנולוגיה מתקדמת
-    "MBLY", "SMCI", "S", "CHKP", "COIN",
+    "MBLY": {"en": "Mobileye Global Inc.", "he": "מובילאיי"},
+    "SMCI": {"en": "Super Micro Computer Inc.", "he": "סופר מיקרו קומפיוטר"},
+    "S": {"en": "SentinelOne Inc.", "he": "סנטינל וואן"},
+    "CHKP": {"en": "Check Point Software Technologies Ltd.", "he": "צ'ק פוינט תוכנה"},
+    "COIN": {"en": "Coinbase Global Inc.", "he": "קוינבייס"},
+    
     # קריפטו
-    "BTC-USD", "ETH-USD",
-    # מדדים וקרנות
-    "VOO", "TA125.TA", "^VIX", "PROK", "BMR"
-]
+    "BTC-USD": {"en": "Bitcoin USD", "he": "ביטקוין"},
+    "ETH-USD": {"en": "Ethereum USD", "he": "את'ריום"},
+    
+    # מדדים וקרנות נוספות
+    "VOO": {"en": "Vanguard S&P 500 ETF", "he": "קרן סל ונגארד S&P 500"},
+    "^VIX": {"en": "CBOE Volatility Index", "he": "מדד הפחד VIX"},
+    "PROK": {"en": "ProK", "he": "פרוק"},
+    "BMR": {"en": "BMR", "he": "ב.מ.ר"}
+}
 
 def get_stock_data():
     israel_tz = pytz.timezone('Asia/Jerusalem')
@@ -36,35 +65,42 @@ def get_stock_data():
     else:
         header_title = "🌙 סיכום סוף יום מסחר"
 
-    message = f"📅 {date_str} {time_str}\n{header_title}\n\n📊 המניות שלך:\n\n"
+    message = f"📅 {date_str} {time_str}\n{header_title}\n\n📊 המניות והנכסים שלך:\n\n"
 
-    for ticker in TICKERS:
+    for ticker, info in STOCKS_INFO.items():
         try:
             stock = yf.Ticker(ticker)
-            # לוקחים נתונים של 5 ימים אחורה כדי לוודא שיש השוואה מדויקת לסגירה הקודמת
             todays_data = stock.history(period="5d")
 
             if todays_data.empty or len(todays_data) < 2:
                 continue
 
             close_price = todays_data["Close"].iloc[-1]
-            prev_close = todays_data["Close"].iloc[-2] # מחיר סגירה של יום המסחר הקודם
-            
+            prev_close = todays_data["Close"].iloc[-2]
             high_price = todays_data["High"].iloc[-1]
             low_price = todays_data["Low"].iloc[-1]
-            volume = int(todays_data["Volume"].iloc[-1])
+            volume = int(todays_data["Volume"].iloc[-1]) if "Volume" in todays_data and not pd.isna(todays_data["Volume"].iloc[-1]) else 0
+
+            # המרה משותף אגורות לשקלים עבור ניירות ערך בבורסת תל אביב (.TA)
+            if ".TA" in ticker:
+                close_price = close_price / 100
+                prev_close = prev_close / 100
+                high_price = high_price / 100
+                low_price = low_price / 100
 
             diff = close_price - prev_close
-            change = (diff / prev_close) * 100
+            change = (diff / prev_close) * 100 if prev_close > 0 else 0.0
 
             emoji_trend = "🟢" if change >= 0 else "🔴"
             status_text = "עולה" if change >= 0 else "יורד"
             sign = "+" if change >= 0 else ""
-            display_name = ticker.replace("-USD", "").replace("^", "")
+            
+            currency_symbol = "₪" if ".TA" in ticker else "$"
 
-            message += f"📊 *{display_name}*\n"
-            message += f"💵 מחיר: `{close_price:,.2f}$`\n"
-            message += f"📊 שינוי: `{sign}{change:.2f}%` ({sign}{diff:,.2f}$)\n"
+            # הצגת שם עברית ושם באנגלית יחד
+            message += f"📊 *{info['he']}* | {info['en']}\n"
+            message += f"💵 מחיר: `{close_price:,.2f}{currency_symbol}`\n"
+            message += f"📊 שינוי: `{sign}{change:.2f}%` ({sign}{diff:,.2f}{currency_symbol})\n"
             message += f"🔼 גבוה: `{high_price:,.2f}` | 📉 נמוך: `{low_price:,.2f}`\n"
             message += f"📦 נפח: `{volume:,}`\n"
             message += f"📈 מצב: {emoji_trend} {status_text}\n"
