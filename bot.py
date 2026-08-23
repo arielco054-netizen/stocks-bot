@@ -7,32 +7,37 @@ import pytz
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 
-# כאן תוכל תמיד להוסיף או למחוק איזה מניות שתרצה בקלות
+# רשימת כל המניות המעודכנת והמלאה (ללא כפיולים)
 TICKERS = [
-    "AAPL",
-    "TSLA",
-    "MSFT",
-    "TEVA.TA",
-    "NVDA",
-    "PLTR",
-    "INTC",
-    "PYPL",
-    "BTC-USD",
-    "GOOGL",
-    "PROK",
-    "VOO",
-    "BMR",
-    "META",
-    "AMZN"
+    # אמריקה וטכנולוגיה
+    "AAPL", "TSLA", "MSFT", "NVDA", "PLTR", "INTC", "PYPL", 
+    "GOOGL", "AMZN", "META", "NFLX",
+    # תעופה, ביטחון ותעשייה
+    "LMT", "BA", "WMT",
+    # פארמה ובריאות
+    "MRNA", "MRK", "TEVA.TA",
+    # סייבר, פינטק וטכנולוגיה מתקדמת
+    "MBLY", "SMCI", "S", "CHKP", "COIN",
+    # קריפטו
+    "BTC-USD", "ETH-USD",
+    # מדדים וקרנות
+    "VOO", "TA125.TA", "^VIX", "PROK", "BMR"
 ]
 
 def get_stock_data():
     israel_tz = pytz.timezone('Asia/Jerusalem')
     current_time = datetime.now(israel_tz)
     date_str = current_time.strftime("%d/%m/%Y")
-    time_str = current_time.strftime("%H:%M")
+    time_str = current_time.strftime("%H:%M:%S")
     
-    message = f"🔔 סיכום יום מסחר | {date_str} ({time_str})\n\n"
+    # זיהוי האם מדובר בעדכון פתיחה או סגירה לפי השעה
+    hour = current_time.hour
+    if hour < 15:
+        header_title = "⏰ 3 שעות עד פתיחת המסחר בוול סטריט (זמן אמת)"
+    else:
+        header_title = "🌙 סיכום סוף יום מסחר"
+
+    message = f"📅 {date_str} {time_str}\n{header_title}\n\n📊 המניות שלך:\n\n"
 
     for ticker in TICKERS:
         try:
@@ -50,18 +55,27 @@ def get_stock_data():
 
             if open_price > 0:
                 change = ((close_price - open_price) / open_price) * 100
+                diff = close_price - open_price
             else:
                 change = 0.0
+                diff = 0.0
 
             emoji_trend = "🟢" if change >= 0 else "🔴"
+            status_text = "עולה" if change >= 0 else "יורד"
             sign = "+" if change >= 0 else ""
-            display_name = ticker.replace("-USD", "")
+            display_name = ticker.replace("-USD", "").replace("^", "")
 
-            message += f"*{display_name}*: {close_price:,.2f} {emoji_trend} {sign}{change:.2f}%\n"
-            message += f"📈 גבוה: {high_price:,.2f} | 📉 נמוך: {low_price:,.2f}\n"
-            message += f"📊 נפח: {volume:,}\n\n"
+            message += f"📊 *{display_name}*\n"
+            message += f"💵 מחיר/סגירה: `{close_price:,.2f}$`\n"
+            message += f"📊 שינוי: `{sign}{change:.2f}%` ({sign}{diff:,.2f}$)\n"
+            message += f"🔼 גבוה: `{high_price:,.2f}` | 📉 נמוך: `{low_price:,.2f}`\n"
+            message += f"📦 נפח: `{volume:,}`\n"
+            message += f"📈 מצב: {emoji_trend} {status_text}\n"
+            message += "〰️〰️〰️〰️〰️〰️\n"
         except Exception as e:
             print(f"Error fetching {ticker}: {e}")
+            display_name = ticker.replace("-USD", "").replace("^", "")
+            message += f"📊 *{display_name}*\n⚠️ שגיאה בטעינת נתונים\n〰️〰️〰️〰️〰️〰️\n"
 
     return message
 
