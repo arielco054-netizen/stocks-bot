@@ -2,8 +2,11 @@ name: Run Stock Bot
 
 on:
   schedule:
-    # מריץ את הבוט כל יום בסגירת המסחר
-    - cron: '0 21 * * *'
+    # שעון UTC - שעת ישראל היא UTC+3 (בשעון קיץ) או UTC+2 (בשעון חורף)
+    # נגדיר כאן 3 פעמים ביום:
+    - cron: '30 13 * * 1-5' # 16:30 ישראל - שעה לפני הפתיחה
+    - cron: '0 20 * * 1-5'  # 23:00 ישראל - סגירת המסחר
+    - cron: '0 5 * * *'     # 08:00 ישראל - בוקר לשוק הישראלי/קריפטו
   workflow_dispatch:
 
 jobs:
@@ -19,9 +22,10 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
+        # הוספנו את הספריה pytz לכאן
         run: |
           pip install --upgrade pip
-          pip install yfinance requests
+          pip install yfinance requests pytz 
 
       - name: Run bot
         env:
