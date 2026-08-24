@@ -24,11 +24,13 @@ STOCKS_INFO = {
     "BA": {"en": "The Boeing Company", "he": "בואינג"},
     "WMT": {"en": "Walmart Inc.", "he": "ולמארט"},
     "MRNA": {"en": "Moderna Inc.", "he": "מודרנה"},
+    "MRK": {"en": "Merck & Co. Inc.", "he": "מרק"},
     "TEVA.TA": {"en": "Teva Pharmaceutical", "he": "טבע"},
     "1155324.TA": {"en": "IBI TA-125 IL ETF", "he": "ת\"א 125"},
     "MBLY": {"en": "Mobileye Global Inc.", "he": "מובילאיי"},
     "SMCI": {"en": "Super Micro Computer", "he": "סופר מיקרו"},
     "CHKP": {"en": "Check Point Software", "he": "צ'ק פוינט"},
+    "COIN": {"en": "Coinbase Global Inc.", "he": "קוינבייס"},
     "BTC-USD": {"en": "Bitcoin USD", "he": "ביטקוין"},
     "ETH-USD": {"en": "Ethereum USD", "he": "את'ריום"},
     "VOO": {"en": "Vanguard S&P 500 ETF", "he": "קרן סל S&P 500"},
@@ -40,7 +42,7 @@ def get_stock_data():
     current_time = datetime.now(israel_tz)
     date_str = current_time.strftime("%d/%m/%Y %H:%M")
     
-    message = f"📅 {date_str}\n📊 **הסיכום המלא של המניות שלך:**\n\n"
+    message = f"📅 {date_str}\n📊 **הסיכום המלא של כל המניות שלך:**\n\n"
 
     for ticker, info in STOCKS_INFO.items():
         try:
@@ -72,7 +74,7 @@ def get_stock_data():
             sign = "+" if change >= 0 else ""
             currency = "₪" if ".TA" in ticker else "$"
 
-            message += f"📊 *{info['he']}* | {info['en']}\n"
+            message += f"📊 {emoji_trend} *{info['he']}* | {info['en']}\n"
             message += f"💵 מחיר: `{close_price:,.2f}{currency}`\n"
             message += f"📊 שינוי: `{sign}{change:.2f}%` ({sign}{diff:,.2f}{currency})\n"
             message += f"🔼 גבוה: `{high_price:,.2f}` | 📉 נמוך: `{low_price:,.2f}`\n"
