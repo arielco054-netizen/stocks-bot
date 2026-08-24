@@ -8,9 +8,7 @@ import pytz
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 
-# מילון המניות המלא הכולל שמות מדויקים בעברית ובאנגלית לכל נכס
 STOCKS_INFO = {
-    # אמריקה וטכנולוגיה
     "AAPL": {"en": "Apple Inc.", "he": "אפל"},
     "TSLA": {"en": "Tesla Inc.", "he": "טסלה"},
     "MSFT": {"en": "Microsoft Corporation", "he": "מיקרוסופט"},
@@ -22,32 +20,20 @@ STOCKS_INFO = {
     "AMZN": {"en": "Amazon.com Inc.", "he": "אמזון"},
     "META": {"en": "Meta Platforms Inc.", "he": "מטא פלטפורמס"},
     "NFLX": {"en": "Netflix Inc.", "he": "נטפליקס"},
-    
-    # תעופה, ביטחון ותעשייה
     "LMT": {"en": "Lockheed Martin Corporation", "he": "לוקהיד מרטין"},
     "BA": {"en": "The Boeing Company", "he": "בואינג"},
     "WMT": {"en": "Walmart Inc.", "he": "ולמארט"},
-    
-    # פארמה, בריאות ומניות ישראליות
     "MRNA": {"en": "Moderna Inc.", "he": "מודרנה"},
     "MRK": {"en": "Merck & Co. Inc.", "he": "מרק"},
     "TEVA.TA": {"en": "Teva Pharmaceutical Industries Ltd.", "he": "טבע תעשיות פרמצבטיות"},
-    
-    # מדד ישראלי
     "1155324.TA": {"en": "IBI SAL (4A) Kosher TA-125 IL ETF", "he": "מדד ישראלי - קרן סל IBI כשרה ת\"א 125"},
-    
-    # סייבר, פינטק וטכנולוגיה מתקדמת
     "MBLY": {"en": "Mobileye Global Inc.", "he": "מובילאיי"},
     "SMCI": {"en": "Super Micro Computer Inc.", "he": "סופר מיקרו קומפיוטר"},
     "S": {"en": "SentinelOne Inc.", "he": "סנטינל וואן"},
     "CHKP": {"en": "Check Point Software Technologies Ltd.", "he": "צ'ק פוינט תוכנה"},
     "COIN": {"en": "Coinbase Global Inc.", "he": "קוינבייס"},
-    
-    # קריפטו
     "BTC-USD": {"en": "Bitcoin USD", "he": "ביטקוין"},
     "ETH-USD": {"en": "Ethereum USD", "he": "את'ריום"},
-    
-    # מדדים וקרנות נוספות
     "VOO": {"en": "Vanguard S&P 500 ETF", "he": "קרן סל ונגארד S&P 500"},
     "^VIX": {"en": "CBOE Volatility Index", "he": "מדד הפחד VIX"},
     "PROK": {"en": "ProK", "he": "פרוק"},
@@ -82,7 +68,6 @@ def get_stock_data():
             low_price = todays_data["Low"].iloc[-1]
             volume = int(todays_data["Volume"].iloc[-1]) if "Volume" in todays_data and not pd.isna(todays_data["Volume"].iloc[-1]) else 0
 
-            # המרה משותף אגורות לשקלים עבור ניירות ערך בבורסת תל אביב (.TA)
             if ".TA" in ticker:
                 close_price = close_price / 100
                 prev_close = prev_close / 100
@@ -98,7 +83,6 @@ def get_stock_data():
             
             currency_symbol = "₪" if ".TA" in ticker else "$"
 
-            # הצגת שם עברית ושם באנגלית יחד
             message += f"📊 *{info['he']}* | {info['en']}\n"
             message += f"💵 מחיר: `{close_price:,.2f}{currency_symbol}`\n"
             message += f"📊 שינוי: `{sign}{change:.2f}%` ({sign}{diff:,.2f}{currency_symbol})\n"
@@ -119,4 +103,5 @@ def send_telegram_message(text):
 
 if __name__ == "__main__":
     stock_report = get_stock_data()
-    send_telegram_message(stock_report)
+    res = send_telegram_message(stock_report)
+    print("Telegram response:", res)
