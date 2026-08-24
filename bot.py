@@ -34,7 +34,9 @@ STOCKS_INFO = {
     "BTC-USD": {"en": "Bitcoin USD", "he": "ביטקוין"},
     "ETH-USD": {"en": "Ethereum USD", "he": "את'ריום"},
     "VOO": {"en": "Vanguard S&P 500 ETF", "he": "קרן סל S&P 500"},
-    "^VIX": {"en": "CBOE Volatility Index", "he": "מדד הפחד VIX"}
+    "^VIX": {"en": "CBOE Volatility Index", "he": "מדד הפחד VIX"},
+    "PROK": {"en": "ProK", "he": "פרוק"},
+    "BMR": {"en": "BMR", "he": "ב.מ.ר"}
 }
 
 def get_stock_reports():
