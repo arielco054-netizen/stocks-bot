@@ -37,53 +37,62 @@ STOCKS_INFO = {
     "^VIX": {"en": "CBOE Volatility Index", "he": "מדד הפחד VIX"}
 }
 
-def get_stock_data():
+def get_stock_reports():
     israel_tz = pytz.timezone('Asia/Jerusalem')
     current_time = datetime.now(israel_tz)
     date_str = current_time.strftime("%d/%m/%Y %H:%M")
     
-    message = f"📅 {date_str}\n📊 **הסיכום המלא של כל המניות שלך:**\n\n"
+    items = list(STOCKS_INFO.items())
+    mid_point = len(items) // 2
+    
+    part1_items = items[:mid_point]
+    part2_items = items[mid_point:]
 
-    for ticker, info in STOCKS_INFO.items():
-        try:
-            stock = yf.Ticker(ticker)
-            todays_data = stock.history(period="5d")
+    def build_chunk(sub_items, title_suffix):
+        msg = f"📅 {date_str}\n📊 **סיכום מניות {title_suffix}:**\n\n"
+        for ticker, info in sub_items:
+            try:
+                stock = yf.Ticker(ticker)
+                todays_data = stock.history(period="5d")
 
-            if todays_data.empty or len(todays_data) < 2:
-                continue
+                if todays_data.empty or len(todays_data) < 2:
+                    continue
 
-            close_price = todays_data["Close"].iloc[-1]
-            prev_close = todays_data["Close"].iloc[-2]
-            high_price = todays_data["High"].iloc[-1]
-            low_price = todays_data["Low"].iloc[-1]
-            volume = int(todays_data["Volume"].iloc[-1]) if "Volume" in todays_data and not pd.isna(todays_data["Volume"].iloc[-1]) else 0
+                close_price = todays_data["Close"].iloc[-1]
+                prev_close = todays_data["Close"].iloc[-2]
+                high_price = todays_data["High"].iloc[-1]
+                low_price = todays_data["Low"].iloc[-1]
+                volume = int(todays_data["Volume"].iloc[-1]) if "Volume" in todays_data and not pd.isna(todays_data["Volume"].iloc[-1]) else 0
 
-            if pd.isna(close_price) or pd.isna(prev_close):
-                continue
+                if pd.isna(close_price) or pd.isna(prev_close):
+                    continue
 
-            if ".TA" in ticker:
-                close_price = close_price / 100
-                prev_close = prev_close / 100
-                high_price = high_price / 100
-                low_price = low_price / 100
+                if ".TA" in ticker:
+                    close_price = close_price / 100
+                    prev_close = prev_close / 100
+                    high_price = high_price / 100
+                    low_price = low_price / 100
 
-            diff = close_price - prev_close
-            change = (diff / prev_close) * 100 if prev_close > 0 else 0.0
+                diff = close_price - prev_close
+                change = (diff / prev_close) * 100 if prev_close > 0 else 0.0
 
-            emoji_trend = "🟢" if change >= 0 else "🔴"
-            sign = "+" if change >= 0 else ""
-            currency = "₪" if ".TA" in ticker else "$"
+                emoji_trend = "🟢" if change >= 0 else "🔴"
+                sign = "+" if change >= 0 else ""
+                currency = "₪" if ".TA" in ticker else "$"
 
-            message += f"📊 {emoji_trend} *{info['he']}* | {info['en']}\n"
-            message += f"💵 מחיר: `{close_price:,.2f}{currency}`\n"
-            message += f"📊 שינוי: `{sign}{change:.2f}%` ({sign}{diff:,.2f}{currency})\n"
-            message += f"🔼 גבוה: `{high_price:,.2f}` | 📉 נמוך: `{low_price:,.2f}`\n"
-            message += f"📦 נפח: `{volume:,}`\n"
-            message += "〰️〰️〰️〰️〰️〰️\n"
-        except Exception as e:
-            print(f"Error fetching {ticker}: {e}")
+                msg += f"📊 {emoji_trend} *{info['he']}* | {info['en']}\n"
+                msg += f"💵 מחיר: `{close_price:,.2f}{currency}`\n"
+                msg += f"📊 שינוי: `{sign}{change:.2f}%` ({sign}{diff:,.2f}{currency})\n"
+                msg += f"🔼 גבוה: `{high_price:,.2f}` | 📉 נמוך: `{low_price:,.2f}`\n"
+                msg += f"📦 נפח: `{volume:,}`\n"
+                msg += "〰️〰️〰️〰️〰️〰️\n"
+            except Exception as e:
+                print(f"Error fetching {ticker}: {e}")
+        return msg
 
-    return message
+    report1 = build_chunk(part1_items, "חלק א'")
+    report2 = build_chunk(part2_items, "חלק ב'")
+    return report1, report2
 
 def send_telegram_message(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -92,6 +101,7 @@ def send_telegram_message(text):
     return response.json()
 
 if __name__ == "__main__":
-    stock_report = get_stock_data()
-    res = send_telegram_message(stock_report)
-    print("Telegram response:", res)
+    report1, report2 = get_stock_reports()
+    res1 = send_telegram_message(report1)
+    res2 = send_telegram_message(report2)
+    print("Telegram responses:", res1, res2)
