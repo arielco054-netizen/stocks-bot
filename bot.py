@@ -32,8 +32,7 @@ TICKERS = {
     "^VIX": ("מדד הפחד VIX", "CBOE Volatility Index"),
     "PROK": ("פרוק", "ProK"),
     "BMR": ("ב.מ.ר", "BMR"),
-    "^TA125.TA": ("מדד תל אביב 125", "TA-125 Index"),
-    "IBIFK4.TA": ("(1155324) IBI SAL (4A) Kosher TA-125 IL ETF", "IBI Kosher TA-125")
+    "^TA125.TA": ("מדד תל אביב 125", "TA-125 Index")
 }
 
 def generate_market_report():
@@ -45,8 +44,6 @@ def generate_market_report():
             history = stock.history(period="2d")
             
             if len(history) < 2:
-                # ברירת מחדל בטוחה אם אין היסטוריה זמינה כרגע ב-Yahoo
-                items.append((0.0, f"📊 🟢 {hebrew_name} | {eng_name}\n💵 מחיר: עדכון ממתין\n📊 שינוי: 0.00% (0.00$)\n🔼 גבוה: N/A | 📉 נמוך: N/A\n📦 נפח: N/A\n〰️〰️〰️〰️〰️〰️"))
                 continue
                 
             prev_close = history['Close'].iloc[-2]
@@ -62,18 +59,19 @@ def generate_market_report():
             emoji_status = "🟢" if is_positive else "🔴"
             sign = "+" if is_positive else ""
             
+            price_suffix = "$" if "BTC" not in ticker and "TA125" not in ticker else (" USD" if "BTC" in ticker else " נקודות")
+            
             line = (
                 f"📊 {emoji_status} {hebrew_name} | {eng_name}\n"
-                f"💵 מחיר: {current_price:.2f}$\n"
-                f"📊 שינוי: {sign}{change_percent:.2f}% ({sign}{change:.2f}$)\n"
-                f"🔼 גבוה: {high_price:.2f} | 📉 נמוך: {low_price:.2f}\n"
+                f"💵 מחיר: {current_price:,.2f}{price_suffix}\n"
+                f"📊 שינוי: {sign}{change_percent:.2f}% ({sign}{change:,.2f})\n"
+                f"🔼 גבוה: {high_price:,.2f} | 📉 נמוך: {low_price:,.2f}\n"
                 f"📦 נפח: {volume:,}\n"
                 f"〰️〰️〰️〰️〰️〰️"
             )
             items.append((change_percent, line))
         except Exception as e:
             print(f"שגיאה במניה {ticker}: {e}")
-            items.append((0.0, f"📊 🟢 {hebrew_name} | {eng_name}\n💵 מחיר: עדכון ממתין\n📊 שינוי: 0.00% (0.00$)\n🔼 גבוה: N/A | 📉 נמוך: N/A\n📦 נפח: N/A\n〰️〰️〰️〰️〰️〰️"))
             continue
             
     # מיון מהיורד ביותר (שלילי גבוה) לעולה ביותר (חיובי גבוה)
