@@ -68,10 +68,12 @@ def generate_market_report():
                 f"〰️〰️〰️〰️〰️〰️"
             )
             items.append((change_percent, line))
-        except Exception:
+        except Exception as e:
+            print(f"שגיאה במניה {ticker}: {e}")
             continue
             
-    items.sort(key=lambda x: x[0], reverse=True)
+    # מיון מהיורד ביותר (שלילי גבוה) לעולה ביותר (חיובי גבוה)
+    items.sort(key=lambda x: x[0], reverse=False)
     
     report_lines = [line for _, line in items]
     current_time = datetime.now().strftime("%d/%m/%Y %H:%M")
