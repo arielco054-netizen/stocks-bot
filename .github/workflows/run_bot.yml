@@ -3,29 +3,28 @@ name: Run Stock Bot Automatically
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 11 * * 1-5'  # שולח לפני פתיחת המסחר
-    - cron: '0 20 * * 1-5'   # שולח בסיום המסחר
+    - cron: '0 20 * * *' # רץ כל יום בשעה 20:00 UTC (שזה 23:00 בלילה שעון ישראל)
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-    - name: Install dependencies
-      run: |
-        pip install requests yfinance pytz pandas
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-    - name: Run bot
-      env:
-        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        CHAT_ID: ${{ secrets.CHAT_ID }}
-      run: |
-        python bot.py
+      - name: Run bot script
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: |
+          python bot.py
