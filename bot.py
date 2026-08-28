@@ -45,13 +45,16 @@ def generate_market_report():
             history = stock.history(period="2d")
             
             if len(history) < 2:
+                # הגנה מיוחדת עבור קרן הסל הישראלית אם אין היסטוריה מלאה ב-Yahoo
+                if ticker == "1155324.TA":
+                    items.append((0.0, f"📊 🟢 {hebrew_name} | {eng_name}\n💵 מחיר: N/A\n📊 שינוי: 0.00% (0.00$)\n🔼 גבוה: N/A | 📉 נמוך: N/A\n📦 נפח: N/A\n〰️〰️〰️〰️〰️〰️"))
                 continue
                 
             prev_close = history['Close'].iloc[-2]
             current_price = history['Close'].iloc[-1]
             high_price = history['High'].iloc[-1]
             low_price = history['Low'].iloc[-1]
-            volume = int(history['Volume'].iloc[-1])
+            volume = int(history['Volume'].iloc[-1]) if 'Volume' in history and not history['Volume'].empty else 0
             
             change = current_price - prev_close
             change_percent = (change / prev_close) * 100
@@ -71,6 +74,8 @@ def generate_market_report():
             items.append((change_percent, line))
         except Exception as e:
             print(f"שגיאה במניה {ticker}: {e}")
+            if ticker == "1155324.TA":
+                items.append((0.0, f"📊 🟢 {hebrew_name} | {eng_name}\n💵 מחיר: N/A\n📊 שינוי: 0.00% (0.00$)\n🔼 גבוה: N/A | 📉 נמוך: N/A\n📦 נפח: N/A\n〰️〰️〰️〰️〰️〰️"))
             continue
             
     # מיון מהיורד ביותר (שלילי גבוה) לעולה ביותר (חיובי גבוה)
