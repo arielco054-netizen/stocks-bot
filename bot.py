@@ -32,6 +32,7 @@ TICKERS = {
     "^VIX": ("מדד הפחד VIX", "CBOE Volatility Index"),
     "PROK": ("פרוק", "ProK"),
     "BMR": ("ב.מ.ר", "BMR"),
+    "^TA125.TA": ("מדד תל אביב 125", "TA-125 Index"),
     "1155324.TA": ("(1155324) IBI SAL (4A) Kosher TA-125 IL ETF", "IBI Kosher TA-125")
 }
 
