@@ -2,15 +2,11 @@ import os
 import telebot
 import yfinance as yf
 from datetime import datetime
-import time
-import threading
-import schedule
 
 TOKEN = os.getenv('BOT_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
 bot = telebot.TeleBot(TOKEN)
 
-# רשימת המניות עם השם בעברית והשם המלא באנגלית כמו שביקשת
 TICKERS = {
     "AAPL": ("אפל", "Apple Inc."),
     "TSLA": ("טסלה", "Tesla Inc."),
@@ -42,7 +38,7 @@ TICKERS = {
 }
 
 def generate_market_report():
-    report_lines = []
+    items = []
     
     for ticker, (hebrew_name, eng_name) in TICKERS.items():
         try:
@@ -73,10 +69,15 @@ def generate_market_report():
                 f"📦 נפח: {volume:,}\n"
                 f"〰️〰️〰️〰️〰️〰️"
             )
-            report_lines.append(line)
+            # שומרים את האחוזים יחד עם השורה כדי למיין לפיהם
+            items.append((change_percent, line))
         except Exception:
             continue
             
+    # מיון מהאחוז הגבוה ביותר (עלה הכי הרבה) לנמוך ביותר (ירד הכי הרבה)
+    items.sort(key=lambda x: x[0], reverse=True)
+    
+    report_lines = [line for _, line in items]
     current_time = datetime.now().strftime("%d/%m/%Y %H:%M")
     
     mid = len(report_lines) // 2
@@ -91,35 +92,12 @@ def send_daily_report():
     try:
         part1, part2 = generate_market_report()
         bot.send_message(CHAT_ID, "📊 סיכום סוף מסחר חלק א':\n\n" + part1)
+        import time
         time.sleep(2)
         bot.send_message(CHAT_ID, "📊 סיכום מניות חלק ב':\n\n" + part2)
     except Exception as e:
         print(f"שגיאה: {e}")
 
-def run_scheduler():
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
-
-@bot.message_handler(commands=['report'])
-def manual_report(message):
-    try:
-        bot.reply_to(message, "⏳ מכין את דוח המניות שלך, רגע אחד...")
-        part1, part2 = generate_market_report()
-        bot.send_message(message.chat.id, "📊 סיכום סוף מסחר חלק א':\n\n" + part1)
-        time.sleep(1)
-        bot.send_message(message.chat.id, "📊 סיכום מניות חלק ב':\n\n" + part2)
-    except Exception as e:
-        bot.reply_to(message, f"שגיאה: {str(e)}")
-
-@bot.message_handler(commands=['start'])
-def start_bot(message):
-    bot.reply_to(message, "הבוט פעיל! ישלח את סיכום סוף המסחר אוטומטית בשעה 11 בלילה או לפי פקודה /report.")
-
 if __name__ == '__main__':
-    schedule.every().day.at("20:00").do(send_daily_report)
-    
-    scheduler_thread = threading.Thread(target=run_scheduler)
-    scheduler_thread.start()
-    
-    bot.infinity_polling()
+    # מריץ את הדוח מיד ושולח לטלגרם, ואז מסתיים בהצלחה בלי קריאות מיותרות של לופ
+    send_daily_report()
