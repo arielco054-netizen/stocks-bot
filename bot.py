@@ -33,7 +33,7 @@ TICKERS = {
     "PROK": ("פרוק", "ProK"),
     "BMR": ("ב.מ.ר", "BMR"),
     "^TA125.TA": ("מדד תל אביב 125", "TA-125 Index"),
-    "1155324.TA": ("(1155324) IBI SAL (4A) Kosher TA-125 IL ETF", "IBI Kosher TA-125")
+    "IBIFK4.TA": ("(1155324) IBI SAL (4A) Kosher TA-125 IL ETF", "IBI Kosher TA-125")
 }
 
 def generate_market_report():
@@ -45,9 +45,8 @@ def generate_market_report():
             history = stock.history(period="2d")
             
             if len(history) < 2:
-                # הגנה מיוחדת עבור קרן הסל הישראלית אם אין היסטוריה מלאה ב-Yahoo
-                if ticker == "1155324.TA":
-                    items.append((0.0, f"📊 🟢 {hebrew_name} | {eng_name}\n💵 מחיר: N/A\n📊 שינוי: 0.00% (0.00$)\n🔼 גבוה: N/A | 📉 נמוך: N/A\n📦 נפח: N/A\n〰️〰️〰️〰️〰️〰️"))
+                # ברירת מחדל בטוחה אם אין היסטוריה זמינה כרגע ב-Yahoo
+                items.append((0.0, f"📊 🟢 {hebrew_name} | {eng_name}\n💵 מחיר: עדכון ממתין\n📊 שינוי: 0.00% (0.00$)\n🔼 גבוה: N/A | 📉 נמוך: N/A\n📦 נפח: N/A\n〰️〰️〰️〰️〰️〰️"))
                 continue
                 
             prev_close = history['Close'].iloc[-2]
@@ -74,8 +73,7 @@ def generate_market_report():
             items.append((change_percent, line))
         except Exception as e:
             print(f"שגיאה במניה {ticker}: {e}")
-            if ticker == "1155324.TA":
-                items.append((0.0, f"📊 🟢 {hebrew_name} | {eng_name}\n💵 מחיר: N/A\n📊 שינוי: 0.00% (0.00$)\n🔼 גבוה: N/A | 📉 נמוך: N/A\n📦 נפח: N/A\n〰️〰️〰️〰️〰️〰️"))
+            items.append((0.0, f"📊 🟢 {hebrew_name} | {eng_name}\n💵 מחיר: עדכון ממתין\n📊 שינוי: 0.00% (0.00$)\n🔼 גבוה: N/A | 📉 נמוך: N/A\n📦 נפח: N/A\n〰️〰️〰️〰️〰️〰️"))
             continue
             
     # מיון מהיורד ביותר (שלילי גבוה) לעולה ביותר (חיובי גבוה)
