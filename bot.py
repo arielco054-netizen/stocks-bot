@@ -112,11 +112,10 @@ def manual_report(message):
 
 @bot.message_handler(commands=['start'])
 def start_bot(message):
-    bot.reply_to(message, "הבוט פעיל! ישלח את סיכום סוף המסחר אוטומטית או לפי פקודה /report.")
+    bot.reply_to(message, "הבוט פעיל! ישלח את סיכום סוף המסחר אוטומטית בשעה 11 בלילה או לפי פקודה /report.")
 
 if __name__ == '__main__':
-    # כאן מתזמנים את השעה. מכיוון שהשרת בדרך כלל ב-UTC, 
-    # כדי שישלח בשעה 23:00 בלילה שעון ישראל, נגדיר כאן את השעה 20:00 (שזה 23:00 אצלנו).
+    # מוגדר ל-20:00 בשרת, שזה בדיוק 23:00 (שעה 11 בלילה) שעון ישראל
     schedule.every().day.at("20:00").do(send_daily_report)
     
     scheduler_thread = threading.Thread(target=run_scheduler)
