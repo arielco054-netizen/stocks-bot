@@ -10,40 +10,41 @@ TOKEN = os.getenv('BOT_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
 bot = telebot.TeleBot(TOKEN)
 
+# רשימת המניות עם השם בעברית והשם המלא באנגלית כמו שביקשת
 TICKERS = {
-    "AAPL": "אפל",
-    "TSLA": "טסלה",
-    "MSFT": "מיקרוסופט",
-    "NVDA": "אנבידיה",
-    "PLTR": "פלנטיר טכנולוגיות",
-    "INTC": "אינטל",
-    "PYPL": "פייפאל",
-    "GOOGL": "אלפאבית / גוגל",
-    "AMZN": "אמזון",
-    "META": "מטא פלטפורמס",
-    "NFLX": "נטפליקס",
-    "LMT": "לוקהיד מרטין",
-    "BA": "בואינג",
-    "WMT": "ולמארט",
-    "MRNA": "מודרנה",
-    "MRK": "מרק",
-    "MBLY": "מובילאיי",
-    "SMCI": "סופר מיקרו",
-    "CHKP": "צ'ק פוינט",
-    "COIN": "קוינבייס",
-    "BTC-USD": "ביטקוין",
-    "ETH-USD": "את'ריום",
-    "VOO": "קרן סל S&P 500",
-    "^VIX": "מדד הפחד",
-    "PROK": "פרוק",
-    "BMR": "ב.מ.ר",
-    "^TA125.TA": "מדד תל אביב 125"
+    "AAPL": ("אפל", "Apple Inc."),
+    "TSLA": ("טסלה", "Tesla Inc."),
+    "MSFT": ("מיקרוסופט", "Microsoft Corporation"),
+    "NVDA": ("אנבידיה", "NVIDIA Corporation"),
+    "PLTR": ("פלנטיר טכנולוגיות", "Palantir Technologies Inc."),
+    "INTC": ("אינטל", "Intel Corporation"),
+    "PYPL": ("פייפאל", "PayPal Holdings Inc."),
+    "GOOGL": ("אלפאבית / גוגל", "Alphabet Inc. (Google)"),
+    "AMZN": ("אמזון", "Amazon.com Inc."),
+    "META": ("מטא פלטפורמס", "Meta Platforms Inc."),
+    "NFLX": ("נטפליקס", "Netflix Inc."),
+    "LMT": ("לוקהיד מרטין", "Lockheed Martin Corporation"),
+    "BA": ("בואינג", "The Boeing Company"),
+    "WMT": ("ולמארט", "Walmart Inc."),
+    "MRNA": ("מודרנה", "Moderna Inc."),
+    "MRK": ("מרק", "Merck & Co. Inc."),
+    "MBLY": ("מובילאיי", "Mobileye Global Inc."),
+    "SMCI": ("סופר מיקרו", "Super Micro Computer"),
+    "CHKP": ("צ'ק פוינט", "Check Point Software"),
+    "COIN": ("קוינבייס", "Coinbase Global Inc."),
+    "BTC-USD": ("ביטקוין", "Bitcoin USD"),
+    "ETH-USD": ("את'ריום", "Ethereum USD"),
+    "VOO": ("קרן סל S&P 500", "Vanguard S&P 500 ETF"),
+    "^VIX": ("מדד הפחד VIX", "CBOE Volatility Index"),
+    "PROK": ("פרוק", "ProK"),
+    "BMR": ("ב.מ.ר", "BMR"),
+    "^TA125.TA": ("מדד תל אביב 125", "TA-125 Index")
 }
 
 def generate_market_report():
     report_lines = []
     
-    for ticker, hebrew_name in TICKERS.items():
+    for ticker, (hebrew_name, eng_name) in TICKERS.items():
         try:
             stock = yf.Ticker(ticker)
             history = stock.history(period="2d")
@@ -65,7 +66,7 @@ def generate_market_report():
             sign = "+" if is_positive else ""
             
             line = (
-                f"{emoji_status} {hebrew_name}\n"
+                f"📊 {emoji_status} {hebrew_name} | {eng_name}\n"
                 f"💵 מחיר: {current_price:.2f}$\n"
                 f"📊 שינוי: {sign}{change_percent:.2f}% ({sign}{change:.2f}$)\n"
                 f"🔼 גבוה: {high_price:.2f} | 📉 נמוך: {low_price:.2f}\n"
