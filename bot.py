@@ -29,12 +29,10 @@ TICKERS = {
     "CHKP": ("צ'ק פוינט", "Check Point Software"),
     "COIN": ("קוינבייס", "Coinbase Global Inc."),
     "BTC-USD": ("ביטקוין", "Bitcoin USD"),
-    "ETH-USD": ("את'ריום", "Ethereum USD"),
-    "VOO": ("קרן סל S&P 500", "Vanguard S&P 500 ETF"),
     "^VIX": ("מדד הפחד VIX", "CBOE Volatility Index"),
     "PROK": ("פרוק", "ProK"),
     "BMR": ("ב.מ.ר", "BMR"),
-    "^TA125.TA": ("מדד תל אביב 125", "TA-125 Index")
+    "1155324.TA": ("(1155324) IBI SAL (4A) Kosher TA-125 IL ETF", "IBI Kosher TA-125")
 }
 
 def generate_market_report():
@@ -69,12 +67,10 @@ def generate_market_report():
                 f"📦 נפח: {volume:,}\n"
                 f"〰️〰️〰️〰️〰️〰️"
             )
-            # שומרים את האחוזים יחד עם השורה כדי למיין לפיהם
             items.append((change_percent, line))
         except Exception:
             continue
             
-    # מיון מהאחוז הגבוה ביותר (עלה הכי הרבה) לנמוך ביותר (ירד הכי הרבה)
     items.sort(key=lambda x: x[0], reverse=True)
     
     report_lines = [line for _, line in items]
@@ -99,5 +95,4 @@ def send_daily_report():
         print(f"שגיאה: {e}")
 
 if __name__ == '__main__':
-    # מריץ את הדוח מיד ושולח לטלגרם, ואז מסתיים בהצלחה בלי קריאות מיותרות של לופ
     send_daily_report()
