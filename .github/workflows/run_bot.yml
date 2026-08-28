@@ -3,7 +3,7 @@ name: Run Stock Bot Automatically
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 20 * * *' # רץ כל יום בשעה 20:00 UTC (שזה 23:00 בלילה שעון ישראל)
+    - cron: '0 20 * * *'
 
 jobs:
   build:
