@@ -36,7 +36,8 @@ TICKERS = {
     "VOO": "קרן סל S&P 500",
     "^VIX": "מדד הפחד",
     "PROK": "פרוק",
-    "BMR": "ב.מ.ר"
+    "BMR": "ב.מ.ר",
+    "^TA125.TA": "מדד תל אביב 125"
 }
 
 def generate_market_report():
@@ -115,7 +116,6 @@ def start_bot(message):
     bot.reply_to(message, "הבוט פעיל! ישלח את סיכום סוף המסחר אוטומטית בשעה 11 בלילה או לפי פקודה /report.")
 
 if __name__ == '__main__':
-    # מוגדר ל-20:00 בשרת, שזה בדיוק 23:00 (שעה 11 בלילה) שעון ישראל
     schedule.every().day.at("20:00").do(send_daily_report)
     
     scheduler_thread = threading.Thread(target=run_scheduler)
