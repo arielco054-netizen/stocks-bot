@@ -41,7 +41,7 @@ def generate_market_report():
     for ticker, (hebrew_name, eng_name) in TICKERS.items():
         try:
             stock = yf.Ticker(ticker)
-            history = stock.history(period="2d")
+            history = stock.history(period="5d" if "BTC" in ticker else "2d")
             
             if len(history) < 2:
                 continue
