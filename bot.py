@@ -1,109 +1,125 @@
 import os
-import requests
+import telebot
 import yfinance as yf
-import pandas as pd
 from datetime import datetime
-import pytz
+import time
+import threading
+import schedule
 
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-CHAT_ID = os.environ.get("CHAT_ID")
+TOKEN = os.getenv('BOT_TOKEN')
+CHAT_ID = os.getenv('CHAT_ID')
+bot = telebot.TeleBot(TOKEN)
 
-STOCKS_INFO = {
-    "AAPL": {"en": "Apple Inc.", "he": "אפל"},
-    "TSLA": {"en": "Tesla Inc.", "he": "טסלה"},
-    "MSFT": {"en": "Microsoft Corporation", "he": "מיקרוסופט"},
-    "NVDA": {"en": "NVIDIA Corporation", "he": "אנבידיה"},
-    "PLTR": {"en": "Palantir Technologies Inc.", "he": "פלנטיר טכנולוגיות"},
-    "INTC": {"en": "Intel Corporation", "he": "אינטל"},
-    "PYPL": {"en": "PayPal Holdings Inc.", "he": "פייפאל"},
-    "GOOGL": {"en": "Alphabet Inc. (Google)", "he": "אלפאבית / גוגל"},
-    "AMZN": {"en": "Amazon.com Inc.", "he": "אמזון"},
-    "META": {"en": "Meta Platforms Inc.", "he": "מטא פלטפורמס"},
-    "NFLX": {"en": "Netflix Inc.", "he": "נטפליקס"},
-    "LMT": {"en": "Lockheed Martin Corporation", "he": "לוקהיד מרטין"},
-    "BA": {"en": "The Boeing Company", "he": "בואינג"},
-    "WMT": {"en": "Walmart Inc.", "he": "ולמארט"},
-    "MRNA": {"en": "Moderna Inc.", "he": "מודרנה"},
-    "MRK": {"en": "Merck & Co. Inc.", "he": "מרק"},
-    "TEVA.TA": {"en": "Teva Pharmaceutical", "he": "טבע"},
-    "1155324.TA": {"en": "IBI TA-125 IL ETF", "he": "ת\"א 125"},
-    "MBLY": {"en": "Mobileye Global Inc.", "he": "מובילאיי"},
-    "SMCI": {"en": "Super Micro Computer", "he": "סופר מיקרו"},
-    "CHKP": {"en": "Check Point Software", "he": "צ'ק פוינט"},
-    "COIN": {"en": "Coinbase Global Inc.", "he": "קוינבייס"},
-    "BTC-USD": {"en": "Bitcoin USD", "he": "ביטקוין"},
-    "ETH-USD": {"en": "Ethereum USD", "he": "את'ריום"},
-    "VOO": {"en": "Vanguard S&P 500 ETF", "he": "קרן סל S&P 500"},
-    "^VIX": {"en": "CBOE Volatility Index", "he": "מדד הפחד VIX"},
-    "PROK": {"en": "ProK", "he": "פרוק"},
-    "BMR": {"en": "BMR", "he": "ב.מ.ר"}
+TICKERS = {
+    "AAPL": "אפל",
+    "TSLA": "טסלה",
+    "MSFT": "מיקרוסופט",
+    "NVDA": "אנבידיה",
+    "PLTR": "פלנטיר טכנולוגיות",
+    "INTC": "אינטל",
+    "PYPL": "פייפאל",
+    "GOOGL": "אלפאבית / גוגל",
+    "AMZN": "אמזון",
+    "META": "מטא פלטפורמס",
+    "NFLX": "נטפליקס",
+    "LMT": "לוקהיד מרטין",
+    "BA": "בואינג",
+    "WMT": "ולמארט",
+    "MRNA": "מודרנה",
+    "MRK": "מרק",
+    "MBLY": "מובילאיי",
+    "SMCI": "סופר מיקרו",
+    "CHKP": "צ'ק פוינט",
+    "COIN": "קוינבייס",
+    "BTC-USD": "ביטקוין",
+    "ETH-USD": "את'ריום",
+    "VOO": "קרן סל S&P 500",
+    "^VIX": "מדד הפחד",
+    "PROK": "פרוק",
+    "BMR": "ב.מ.ר"
 }
 
-def get_stock_reports():
-    israel_tz = pytz.timezone('Asia/Jerusalem')
-    current_time = datetime.now(israel_tz)
-    date_str = current_time.strftime("%d/%m/%Y %H:%M")
+def generate_market_report():
+    report_lines = []
     
-    items = list(STOCKS_INFO.items())
-    mid_point = len(items) // 2
+    for ticker, hebrew_name in TICKERS.items():
+        try:
+            stock = yf.Ticker(ticker)
+            history = stock.history(period="2d")
+            
+            if len(history) < 2:
+                continue
+                
+            prev_close = history['Close'].iloc[-2]
+            current_price = history['Close'].iloc[-1]
+            high_price = history['High'].iloc[-1]
+            low_price = history['Low'].iloc[-1]
+            volume = int(history['Volume'].iloc[-1])
+            
+            change = current_price - prev_close
+            change_percent = (change / prev_close) * 100
+            
+            is_positive = change >= 0
+            emoji_status = "🟢" if is_positive else "🔴"
+            sign = "+" if is_positive else ""
+            
+            line = (
+                f"{emoji_status} {hebrew_name}\n"
+                f"💵 מחיר: {current_price:.2f}$\n"
+                f"📊 שינוי: {sign}{change_percent:.2f}% ({sign}{change:.2f}$)\n"
+                f"🔼 גבוה: {high_price:.2f} | 📉 נמוך: {low_price:.2f}\n"
+                f"📦 נפח: {volume:,}\n"
+                f"〰️〰️〰️〰️〰️〰️"
+            )
+            report_lines.append(line)
+        except Exception:
+            continue
+            
+    current_time = datetime.now().strftime("%d/%m/%Y %H:%M")
     
-    part1_items = items[:mid_point]
-    part2_items = items[mid_point:]
+    mid = len(report_lines) // 2
+    part1 = "\n".join(report_lines[:mid])
+    part2 = "\n".join(report_lines[mid:]) + f"\n\n📅 {current_time}"
+    
+    return part1, part2
 
-    def build_chunk(sub_items, title_suffix):
-        msg = f"📅 {date_str}\n📊 **סיכום מניות {title_suffix}:**\n\n"
-        for ticker, info in sub_items:
-            try:
-                stock = yf.Ticker(ticker)
-                todays_data = stock.history(period="5d")
+def send_daily_report():
+    if not CHAT_ID:
+        return
+    try:
+        part1, part2 = generate_market_report()
+        bot.send_message(CHAT_ID, "📊 סיכום סוף מסחר חלק א':\n\n" + part1)
+        time.sleep(2)
+        bot.send_message(CHAT_ID, "📊 סיכום מניות חלק ב':\n\n" + part2)
+    except Exception as e:
+        print(f"שגיאה: {e}")
 
-                if todays_data.empty or len(todays_data) < 2:
-                    continue
+def run_scheduler():
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
 
-                close_price = todays_data["Close"].iloc[-1]
-                prev_close = todays_data["Close"].iloc[-2]
-                high_price = todays_data["High"].iloc[-1]
-                low_price = todays_data["Low"].iloc[-1]
-                volume = int(todays_data["Volume"].iloc[-1]) if "Volume" in todays_data and not pd.isna(todays_data["Volume"].iloc[-1]) else 0
+@bot.message_handler(commands=['report'])
+def manual_report(message):
+    try:
+        bot.reply_to(message, "⏳ מכין את דוח המניות שלך, רגע אחד...")
+        part1, part2 = generate_market_report()
+        bot.send_message(message.chat.id, "📊 סיכום סוף מסחר חלק א':\n\n" + part1)
+        time.sleep(1)
+        bot.send_message(message.chat.id, "📊 סיכום מניות חלק ב':\n\n" + part2)
+    except Exception as e:
+        bot.reply_to(message, f"שגיאה: {str(e)}")
 
-                if pd.isna(close_price) or pd.isna(prev_close):
-                    continue
+@bot.message_handler(commands=['start'])
+def start_bot(message):
+    bot.reply_to(message, "הבוט פעיל! ישלח את סיכום סוף המסחר אוטומטית או לפי פקודה /report.")
 
-                if ".TA" in ticker:
-                    close_price = close_price / 100
-                    prev_close = prev_close / 100
-                    high_price = high_price / 100
-                    low_price = low_price / 100
-
-                diff = close_price - prev_close
-                change = (diff / prev_close) * 100 if prev_close > 0 else 0.0
-
-                emoji_trend = "🟢" if change >= 0 else "🔴"
-                sign = "+" if change >= 0 else ""
-                currency = "₪" if ".TA" in ticker else "$"
-
-                msg += f"📊 {emoji_trend} *{info['he']}* | {info['en']}\n"
-                msg += f"💵 מחיר: `{close_price:,.2f}{currency}`\n"
-                msg += f"📊 שינוי: `{sign}{change:.2f}%` ({sign}{diff:,.2f}{currency})\n"
-                msg += f"🔼 גבוה: `{high_price:,.2f}` | 📉 נמוך: `{low_price:,.2f}`\n"
-                msg += f"📦 נפח: `{volume:,}`\n"
-                msg += "〰️〰️〰️〰️〰️〰️\n"
-            except Exception as e:
-                print(f"Error fetching {ticker}: {e}")
-        return msg
-
-    report1 = build_chunk(part1_items, "חלק א'")
-    report2 = build_chunk(part2_items, "חלק ב'")
-    return report1, report2
-
-def send_telegram_message(text):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": text, "parse_mode": "Markdown"}
-    response = requests.post(url, json=payload)
-    return response.json()
-
-if __name__ == "__main__":
-    report1, report2 = get_stock_reports()
-    res1 = send_telegram_message(report1)
-    res2 = send_telegram_message(report2)
-    print("Telegram responses:", res1, res2)
+if __name__ == '__main__':
+    # כאן מתזמנים את השעה. מכיוון שהשרת בדרך כלל ב-UTC, 
+    # כדי שישלח בשעה 23:00 בלילה שעון ישראל, נגדיר כאן את השעה 20:00 (שזה 23:00 אצלנו).
+    schedule.every().day.at("20:00").do(send_daily_report)
+    
+    scheduler_thread = threading.Thread(target=run_scheduler)
+    scheduler_thread.start()
+    
+    bot.infinity_polling()
