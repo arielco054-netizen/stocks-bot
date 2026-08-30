@@ -35,25 +35,28 @@ TICKERS = {
     "^TA125.TA": ("מדד תל אביב 125", "TA-125 Index")
 }
 
-def generate_market_report():
+def generate_market_report(is_weekly_summary=False):
     items = []
+    period_str = "5d" if is_weekly_summary else "2d"
+    title_note = " 📊 (סיכום שבועי: מיום שני ועד שבת)" if is_weekly_summary else ""
     
     for ticker, (hebrew_name, eng_name) in TICKERS.items():
         try:
             stock = yf.Ticker(ticker)
-            history = stock.history(period="5d" if "BTC" in ticker else "2d")
+            history = stock.history(period=period_str)
             
             if len(history) < 2:
                 continue
                 
-            prev_close = history['Close'].iloc[-2]
+            # אם זה סיכום שבועי, ניקח את המחיר הראשון של השבוע (יום שני) מול המחיר האחרון (שבת)
+            start_price = history['Close'].iloc[0] if is_weekly_summary else history['Close'].iloc[-2]
             current_price = history['Close'].iloc[-1]
-            high_price = history['High'].iloc[-1]
-            low_price = history['Low'].iloc[-1]
-            volume = int(history['Volume'].iloc[-1]) if 'Volume' in history and not history['Volume'].empty else 0
+            high_price = history['High'].max() if is_weekly_summary else history['High'].iloc[-1]
+            low_price = history['Low'].min() if is_weekly_summary else history['Low'].iloc[-1]
+            volume = int(history['Volume'].sum()) if is_weekly_summary else int(history['Volume'].iloc[-1])
             
-            change = current_price - prev_close
-            change_percent = (change / prev_close) * 100
+            change = current_price - start_price
+            change_percent = (change / start_price) * 100
             
             is_positive = change >= 0
             emoji_status = "🟢" if is_positive else "🔴"
@@ -62,6 +65,12 @@ def generate_market_report():
             price_suffix = "$" if "BTC" not in ticker and "TA125" not in ticker else (" USD" if "BTC" in ticker else " נקודות")
             
             line = (
+                f"📊 {emoji_status} {hebrew_name} | {eng_name}\n"
+                f"💵 מחיר סופי: {current_price:,.2f}{price_suffix}\n"
+                f"📊 שינוי שבועי: {sign}{change_percent:.2f}% ({sign}{change:,.2f})\n"
+                f"🔼 שיא: {high_price:,.2f} | 📉 שפל: {low_price:,.2f}\n"
+                f"📦 נפח מצטבר: {volume:,}\n"
+                f"〰️〰️〰️〰️〰️〰️" if is_weekly_summary else
                 f"📊 {emoji_status} {hebrew_name} | {eng_name}\n"
                 f"💵 מחיר: {current_price:,.2f}{price_suffix}\n"
                 f"📊 שינוי: {sign}{change_percent:.2f}% ({sign}{change:,.2f})\n"
@@ -82,7 +91,7 @@ def generate_market_report():
     
     mid = len(report_lines) // 2
     part1 = "\n".join(report_lines[:mid])
-    part2 = "\n".join(report_lines[mid:]) + f"\n\n📅 {current_time}"
+    part2 = "\n".join(report_lines[mid:]) + f"\n\n📅 {current_time}{title_note}"
     
     return part1, part2
 
@@ -90,11 +99,19 @@ def send_daily_report():
     if not CHAT_ID:
         return
     try:
-        part1, part2 = generate_market_report()
-        bot.send_message(CHAT_ID, "📊 סיכום סוף מסחר חלק א':\n\n" + part1)
+        # בדיקה האם היום הוא שבת (5 = שבת לפי פייתון, או לפי הצורך)
+        today_weekday = datetime.now().weekday()
+        is_sat = (today_weekday == 5) # 5 זה שבת
+        
+        part1, part2 = generate_market_report(is_weekly_summary=is_sat)
+        
+        header_text = "📊 סיכום שבועי (מיום שני ועד שבת) חלק א':\n\n" if is_sat else "📊 סיכום סוף מסחר חלק א':\n\n"
+        footer_text = "📊 סיכום שבועי חלק ב':\n\n" if is_sat else "📊 סיכום מניות חלק ב':\n\n"
+        
+        bot.send_message(CHAT_ID, header_text + part1)
         import time
         time.sleep(2)
-        bot.send_message(CHAT_ID, "📊 סיכום מניות חלק ב':\n\n" + part2)
+        bot.send_message(CHAT_ID, footer_text + part2)
     except Exception as e:
         print(f"שגיאה: {e}")
 
