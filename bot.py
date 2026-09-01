@@ -52,23 +52,26 @@ def generate_market_report(is_weekly_summary=False):
         try:
             stock = yf.Ticker(ticker)
             
-            # שליפת נתוני מחיר מהירים ומדויקים יותר ישירות מהשוק
-            try:
-                fast_info = stock.fast_info
-                live_price = fast_info.get('lastPrice')
-                previous_close = fast_info.get('previousClose')
-            except:
-                live_price = None
-                previous_close = None
+            # שליפת מידע מלא ומעודכן שכולל גם את נתוני הסגירה והמסחר המאוחר
+            info = stock.info
+            live_price = info.get('currentPrice') or info.get('regularMarketPrice') or info.get('navPrice')
+            previous_close = info.get('previousClose') or info.get('regularMarketPreviousClose')
 
             history = stock.history(period=period_str)
             
-            if len(history) >= 2:
-                start_price = history['Close'].iloc[0] if is_weekly_summary else history['Close'].iloc[-2]
-                if previous_close and not is_weekly_summary:
-                    start_price = previous_close
-                    
-                current_price = live_price if live_price else history['Close'].iloc[-1]
+            if len(history) >= 1:
+                # אם יש מחיר מעודכן מה-info ניקח אותו, אחרת מההיסטוריה
+                if live_price:
+                    current_price = live_price
+                else:
+                    current_price = history['Close'].iloc[-1]
+                
+                # בחירת בסיס ההשוואה (מחיר אתמול)
+                if is_weekly_summary:
+                    start_price = history['Close'].iloc[0]
+                else:
+                    start_price = previous_close if previous_close else history['Close'].iloc[-2]
+                
                 high_price = history['High'].max() if is_weekly_summary else history['High'].iloc[-1]
                 low_price = history['Low'].min() if is_weekly_summary else history['Low'].iloc[-1]
                 volume = int(history['Volume'].sum()) if is_weekly_summary else int(history['Volume'].iloc[-1])
@@ -76,10 +79,10 @@ def generate_market_report(is_weekly_summary=False):
                 change = current_price - start_price
                 change_percent = (change / start_price) * 100
             else:
-                raise Exception("אין מספיק נתונים בהיסטוריה")
+                raise Exception("אין נתונים מספיקים")
                 
         except Exception as e:
-            print(f"שגיאה בשליפת נתונים עבור {ticker}: {e}")
+            print(f"שגיאה במניה {ticker}: {e}")
             current_price = 1.00
             high_price = 1.00
             low_price = 1.00
@@ -131,7 +134,7 @@ def send_daily_report():
         time.sleep(2)
         bot.send_message(CHAT_ID, part2)
     except Exception as e:
-        print(f"שגיאה בשליחה: {e}")
+        print(f"שגיאה: {e}")
 
 if __name__ == '__main__':
     send_daily_report()
