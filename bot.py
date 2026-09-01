@@ -51,31 +51,35 @@ def generate_market_report(is_weekly_summary=False):
         
         try:
             stock = yf.Ticker(ticker)
+            
+            # שליפת נתוני מחיר מהירים ומדויקים יותר ישירות מהשוק
+            try:
+                fast_info = stock.fast_info
+                live_price = fast_info.get('lastPrice')
+                previous_close = fast_info.get('previousClose')
+            except:
+                live_price = None
+                previous_close = None
+
             history = stock.history(period=period_str)
             
             if len(history) >= 2:
                 start_price = history['Close'].iloc[0] if is_weekly_summary else history['Close'].iloc[-2]
-                current_price = history['Close'].iloc[-1]
+                if previous_close and not is_weekly_summary:
+                    start_price = previous_close
+                    
+                current_price = live_price if live_price else history['Close'].iloc[-1]
                 high_price = history['High'].max() if is_weekly_summary else history['High'].iloc[-1]
                 low_price = history['Low'].min() if is_weekly_summary else history['Low'].iloc[-1]
                 volume = int(history['Volume'].sum()) if is_weekly_summary else int(history['Volume'].iloc[-1])
                 
                 change = current_price - start_price
                 change_percent = (change / start_price) * 100
-            elif len(history) == 1:
-                # אם יש רק נתון אחד, נשתמש בו כדי לא לאבד את המניה לגמרי
-                current_price = history['Close'].iloc[-1]
-                high_price = history['High'].iloc[-1]
-                low_price = history['Low'].iloc[-1]
-                volume = int(history['Volume'].iloc[-1])
-                change = 0.0
-                change_percent = 0.0
             else:
                 raise Exception("אין מספיק נתונים בהיסטוריה")
                 
         except Exception as e:
-            print(f"שגיאה בשליפת נתונים עבור {ticker}: {e}. משתמש בערכי גיבוי.")
-            # ערכי ברירת מחדל כדי שהמניה תופיע בכל מקרה ולא תחסר ברשימה
+            print(f"שגיאה בשליפת נתונים עבור {ticker}: {e}")
             current_price = 1.00
             high_price = 1.00
             low_price = 1.00
@@ -99,13 +103,11 @@ def generate_market_report(is_weekly_summary=False):
         )
         items.append((change_percent, line))
             
-    # מיון לפי אחוז שינוי
     items.sort(key=lambda x: x[0], reverse=False)
     
     report_lines = [line for _, line in items]
     current_time = datetime.now().strftime("%d/%m/%Y %H:%M")
     
-    # חלוקה מדויקת: 12 בחלק א' והשאר (13) בחלק ב' = בדיוק 25 מניות סה"כ!
     split_index = 12
     
     header_part1 = "📊 סיכום שבועי (מוצאי שבת) חלק א':\n\n" if is_weekly_summary else "📊 סיכום סוף מסחר יומי חלק א':\n\n"
