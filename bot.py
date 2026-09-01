@@ -46,7 +46,7 @@ TICKERS = [
     ("SMCI", "סופר מיקרו", "Super Micro Computer"),
     ("CHKP", "צ'ק פוינט", "Check Point Software"),
     ("INTC", "אינטל", "Intel Corporation"),
-    ("PRK", "פרוק", "ProK"),
+    ("PROK", "פרוק", "ProKidney Corp."),
     ("PLTR", "פלנטיר טכנולוגיות", "Palantir Technologies Inc."),
     ("COIN", "קוינבייס", "Coinbase Global Inc."),
     ("NVDA", "אנבידיה", "NVIDIA Corporation"),
@@ -83,7 +83,6 @@ def fetch_ticker_data(item, is_saturday):
         high_price = float(current_row["High"])
         low_price = float(current_row["Low"])
         
-        # טיפול בנפח מסחר במדדים (שבהם נפח המסחר לרוב לא מדווח או שווה ל-0)
         volume_val = current_row["Volume"]
         volume = int(volume_val) if (volume_val == volume_val and volume_val > 0) else 0
 
@@ -261,10 +260,10 @@ def main():
                 "success": False,
             })
 
-    # מיון לפי אחוז שינוי (מהנמוך לגבוה - יורדות ביותר למעלה, עולות ביותר למטה)
+    # מיון לפי אחוז שינוי (מהיורדות ביותר לעולות ביותר)
     results.sort(key=lambda x: x['change_percent'])
 
-    mid_index = len(results) // 2
+    mid_index = 12
     part1 = results[:mid_index]
     part2 = results[mid_index:]
 
