@@ -5,6 +5,7 @@ import yfinance as yf
 from datetime import datetime
 import pytz
 import schedule
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 TOKEN = os.getenv('BOT_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
@@ -40,67 +41,62 @@ TICKERS = {
     "NVDA": ("אנבידיה", "NVIDIA Corporation")
 }
 
+def fetch_single_ticker(ticker, hebrew_name):
+    try:
+        stock = yf.Ticker(ticker)
+        history = stock.history(period="5d" if "BTC" in ticker else "2d", timeout=5)
+        
+        if len(history) < 2:
+            return None
+            
+        prev_close = history['Close'].iloc[-2]
+        current_price = history['Close'].iloc[-1]
+        high_price = history['High'].iloc[-1]
+        low_price = history['Low'].iloc[-1]
+        volume = history['Volume'].iloc[-1]
+        
+        change = current_price - prev_close
+        change_percent = (change / prev_close) * 100
+        
+        return {
+            'ticker': ticker,
+            'hebrew_name': hebrew_name,
+            'current_price': float(current_price),
+            'change': float(change),
+            'change_percent': float(change_percent),
+            'high_price': float(high_price),
+            'low_price': float(low_price),
+            'volume': int(volume)
+        }
+    except Exception:
+        return None
+
 def send_daily_summary():
     if not CHAT_ID:
         print("שגיאה: CHAT_ID לא מוגדר")
         return
 
-    print("\n⏳ שולף את כל הנתונים בבת אחת (מהיר במיוחד)...")
+    print("\n⏳ השעה הגיעה! אוסף נתונים...")
     start_time = time.time()
     
     results = []
-    tickers_list = list(TICKERS.keys())
 
-    try:
-        # הורדת כל המניות בבקשה אחת מרוכזת
-        data = yf.download(tickers_list, period="5d", group_by='ticker', progress=False)
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {
+            executor.submit(fetch_single_ticker, ticker, names[0]): ticker 
+            for ticker, names in TICKERS.items()
+        }
         
-        for ticker, (hebrew_name, eng_name) in TICKERS.items():
-            try:
-                if len(tickers_list) == 1:
-                    df = data
-                else:
-                    df = data[ticker]
-                
-                # הסרת שורות ריקות אם יש
-                df = df.dropna(subset=['Close'])
-                
-                if len(df) < 2:
-                    continue
-                    
-                prev_close = df['Close'].iloc[-2]
-                current_price = df['Close'].iloc[-1]
-                high_price = df['High'].iloc[-1]
-                low_price = df['High'].iloc[-1]
-                volume = df['Volume'].iloc[-1]
-                
-                change = current_price - prev_close
-                change_percent = (change / prev_close) * 100
-                
-                results.append({
-                    'ticker': ticker,
-                    'hebrew_name': hebrew_name,
-                    'current_price': float(current_price),
-                    'change': float(change),
-                    'change_percent': float(change_percent),
-                    'high_price': float(high_price),
-                    'low_price': float(low_price),
-                    'volume': int(volume)
-                })
-            except Exception as inner_e:
-                print(f"⚠️ שגיאה בעיבוד {ticker}: {inner_e}")
-                continue
-
-    except Exception as e:
-        print(f"❌ שגיאה בשליפת הנתונים המרוכזת: {e}")
-        return
+        for future in as_completed(futures):
+            res = future.result()
+            if res:
+                results.append(res)
 
     if not results:
         print("❌ לא נמצאו נתונים לשליחה.")
         return
 
     results.sort(key=lambda x: x['change_percent'])
-    print("✅ איסוף ומיון הושלמו במהירות. שולח לטלגרם...")
 
     mid_index = len(results) // 2
     part1 = results[:mid_index]
@@ -135,17 +131,21 @@ def send_daily_summary():
         bot.send_message(CHAT_ID, message1, parse_mode="HTML")
         bot.send_message(CHAT_ID, message2, parse_mode="HTML")
         elapsed_time = time.time() - start_time
-        print(f"🚀 נשלח בהצלחה! התהליך הסתיים תוך {elapsed_time:.2f} שניות בלבד.")
+        print(f"🚀 נשלח בהצלחה לטלגרם! לקח {elapsed_time:.2f} שניות.")
     except Exception as e:
         print(f"❌ שגיאה בשליחה לטלגרם: {e}")
 
-schedule.every().day.at("23:00", "Asia/Jerusalem").do(send_daily_summary)
+# תזמון מדויק: שני עד שישי בשעה 23:00, ושבת בשעה 21:00
+schedule.every().monday.at("23:00", "Asia/Jerusalem").do(send_daily_summary)
+schedule.every().tuesday.at("23:00", "Asia/Jerusalem").do(send_daily_summary)
+schedule.every().wednesday.at("23:00", "Asia/Jerusalem").do(send_daily_summary)
+schedule.every().thursday.at("23:00", "Asia/Jerusalem").do(send_daily_summary)
+schedule.every().friday.at("23:00", "Asia/Jerusalem").do(send_daily_summary)
+schedule.every().saturday.at("21:00", "Asia/Jerusalem").do(send_daily_summary)
 
 if __name__ == '__main__':
-    print("🤖 מריץ את הבדיקה המהירה מיד...")
-    send_daily_summary()
+    print("🤖 הבוט פועל ברקע בשקט מלא ולא ישלח כלום עכשיו. ממתין לתזמונים שהוגדרו...")
     
-    print("\n⏳ ממתין לשעה 23:00 בכל יום...")
     while True:
         schedule.run_pending()
         time.sleep(1)
