@@ -10,10 +10,8 @@ TOKEN = os.getenv('BOT_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
 bot = telebot.TeleBot(TOKEN)
 
-# הגדרת אזור זמן של ישראל
 ISRAEL_TZ = pytz.timezone('Asia/Jerusalem')
 
-# 25 המניות והנכסים המדויקים שלך בלבד
 TICKERS = {
     "MRNA": ("מודרנה", "Moderna Inc."),
     "^VIX": ("מדד הפחד VIX", "CBOE Volatility Index"),
@@ -47,49 +45,62 @@ def send_daily_summary():
         print("שגיאה: CHAT_ID לא מוגדר")
         return
 
-    print("\n⏳ מתחיל לאסוף נתונים ל-25 המניות וישלח מיד...")
+    print("\n⏳ שולף את כל הנתונים בבת אחת (מהיר במיוחד)...")
     start_time = time.time()
     
     results = []
+    tickers_list = list(TICKERS.keys())
 
-    for ticker, (hebrew_name, eng_name) in TICKERS.items():
-        try:
-            stock = yf.Ticker(ticker)
-            history = stock.history(period="5d" if "BTC" in ticker else "2d")
-            
-            if len(history) < 2:
-                continue
+    try:
+        # הורדת כל המניות בבקשה אחת מרוכזת
+        data = yf.download(tickers_list, period="5d", group_by='ticker', progress=False)
+        
+        for ticker, (hebrew_name, eng_name) in TICKERS.items():
+            try:
+                if len(tickers_list) == 1:
+                    df = data
+                else:
+                    df = data[ticker]
                 
-            prev_close = history['Close'].iloc[-2]
-            current_price = history['Close'].iloc[-1]
-            high_price = history['High'].iloc[-1]
-            low_price = history['Low'].iloc[-1]
-            volume = history['Volume'].iloc[-1]
-            
-            change = current_price - prev_close
-            change_percent = (change / prev_close) * 100
-            
-            results.append({
-                'ticker': ticker,
-                'hebrew_name': hebrew_name,
-                'current_price': current_price,
-                'change': change,
-                'change_percent': change_percent,
-                'high_price': high_price,
-                'low_price': low_price,
-                'volume': volume
-            })
-        except Exception as e:
-            print(f"⚠️ שגיאה בשליפת נתונים עבור {ticker}: {e}")
-            continue
+                # הסרת שורות ריקות אם יש
+                df = df.dropna(subset=['Close'])
+                
+                if len(df) < 2:
+                    continue
+                    
+                prev_close = df['Close'].iloc[-2]
+                current_price = df['Close'].iloc[-1]
+                high_price = df['High'].iloc[-1]
+                low_price = df['High'].iloc[-1]
+                volume = df['Volume'].iloc[-1]
+                
+                change = current_price - prev_close
+                change_percent = (change / prev_close) * 100
+                
+                results.append({
+                    'ticker': ticker,
+                    'hebrew_name': hebrew_name,
+                    'current_price': float(current_price),
+                    'change': float(change),
+                    'change_percent': float(change_percent),
+                    'high_price': float(high_price),
+                    'low_price': float(low_price),
+                    'volume': int(volume)
+                })
+            except Exception as inner_e:
+                print(f"⚠️ שגיאה בעיבוד {ticker}: {inner_e}")
+                continue
+
+    except Exception as e:
+        print(f"❌ שגיאה בשליפת הנתונים המרוכזת: {e}")
+        return
 
     if not results:
         print("❌ לא נמצאו נתונים לשליחה.")
         return
 
-    # מיון מהיורדות ביותר (שליליות) ועד לעולות ביותר (חיוביות)
     results.sort(key=lambda x: x['change_percent'])
-    print("✅ איסוף ומיון המניות הושלם. שולח לטלגרם...")
+    print("✅ איסוף ומיון הושלמו במהירות. שולח לטלגרם...")
 
     mid_index = len(results) // 2
     part1 = results[:mid_index]
@@ -110,7 +121,7 @@ def send_daily_summary():
                 f"💵 מחיר: {item['current_price']:,.2f}{price_suffix}\n"
                 f"📊 שינוי: {sign}{item['change_percent']:.2f}% ({sign}{item['change']:,.2f})\n"
                 f"🔼 גבוה: {item['high_price']:,.2f} | 📉 נמוך: {item['low_price']:,.2f}\n"
-                f"📦 נפח: {int(item['volume']):,}\n"
+                f"📦 נפח: {item['volume']:,}\n"
                 f"📅 עדכון: {current_date}\n"
                 f"〰️〰️〰️〰️〰️〰️"
             )
@@ -124,20 +135,17 @@ def send_daily_summary():
         bot.send_message(CHAT_ID, message1, parse_mode="HTML")
         bot.send_message(CHAT_ID, message2, parse_mode="HTML")
         elapsed_time = time.time() - start_time
-        print(f"🚀 הסיכום נשלח בהצלחה! התהליך לקח {elapsed_time:.2f} שניות.")
+        print(f"🚀 נשלח בהצלחה! התהליך הסתיים תוך {elapsed_time:.2f} שניות בלבד.")
     except Exception as e:
-        print(f"❌ שגיאה בשליחת ההודעות לטלגרם: {e}")
+        print(f"❌ שגיאה בשליחה לטלגרם: {e}")
 
-# תזמון יומי אוטומטי לשעה 23:00
 schedule.every().day.at("23:00", "Asia/Jerusalem").do(send_daily_summary)
 
 if __name__ == '__main__':
-    print("🤖 מריץ את הבדיקה הראשונית מיד...")
-    
-    # הפעלה ידנית מיד כשמריצים את הקובץ
+    print("🤖 מריץ את הבדיקה המהירה מיד...")
     send_daily_summary()
     
-    print("\n⏳ מעבר למצב המתנה – הבוט ימשיך לרוץ ברקע וישלח אוטומטית כל יום בשעה 23:00.")
+    print("\n⏳ ממתין לשעה 23:00 בכל יום...")
     while True:
         schedule.run_pending()
         time.sleep(1)
