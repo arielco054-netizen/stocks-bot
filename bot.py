@@ -1,15 +1,14 @@
 import os
+import time
 import telebot
 import yfinance as yf
 from datetime import datetime
-import time
-import schedule
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 TOKEN = os.getenv('BOT_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
 bot = telebot.TeleBot(TOKEN)
 
+# רשימת המניות והנכסים המלאה שלך
 TICKERS = {
     "AAPL": ("אפל", "Apple Inc."),
     "TSLA": ("טסלה", "Tesla Inc."),
@@ -35,121 +34,94 @@ TICKERS = {
     "^VIX": ("מדד הפחד VIX", "CBOE Volatility Index"),
     "PROK": ("פרוק", "ProK"),
     "BMR": ("ב.מ.ר", "BMR"),
-    "^TA125.TA": ("מדד תל אביב 125", "TA-125 Index")
+    "^TA125.TA": ("מדד תל אביב 125", "TA-125 Index"),
+    "AMD": ("אמדי / AMD", "Advanced Micro Devices, Inc."),
+    "QCOM": ("קוואלקום", "Qualcomm Inc."),
+    "DIS": ("דיסני", "The Walt Disney Company")
 }
 
-def fetch_single_ticker(ticker, hebrew_name, eng_name, is_weekly_summary):
-    period_str = "5d" if is_weekly_summary else "2d"
-    current_price = 0.00
-    high_price = 0.00
-    low_price = 0.00
-    volume = 0
-    change = 0.0
-    change_percent = 0.0
+def send_daily_summary():
+    if not CHAT_ID:
+        print("שגיאה: CHAT_ID לא מוגדר")
+        return
+
+    print("מתחיל לאסוף נתונים לסיכום המניות...")
+    start_time = time.time()
     
-    # ניסיון שליפה מבוקר (מקסימום 2 ניסיונות מהירים כדי לעולם לא להיתקע)
-    for attempt in range(2):
+    results = []
+
+    for ticker, (hebrew_name, eng_name) in TICKERS.items():
         try:
             stock = yf.Ticker(ticker)
-            history = stock.history(period=period_str, timeout=4)
+            history = stock.history(period="5d" if "BTC" in ticker else "2d")
             
-            if not history.empty and len(history) >= 1:
-                current_price = float(history['Close'].iloc[-1])
+            if len(history) < 2:
+                continue
                 
-                if is_weekly_summary:
-                    start_price = float(history['Close'].iloc[0])
-                else:
-                    start_price = float(history['Close'].iloc[-2]) if len(history) >= 2 else current_price
-                
-                high_price = float(history['High'].max() if is_weekly_summary else history['High'].iloc[-1])
-                low_price = float(history['Low'].min() if is_weekly_summary else history['Low'].iloc[-1])
-                volume = int(history['Volume'].sum() if is_weekly_summary else history['Volume'].iloc[-1])
-                
-                change = current_price - start_price
-                change_percent = (change / start_price) * 100 if start_price > 0 else 0.0
-                break # הצליח - יוצא מהלולאה מיד
+            prev_close = history['Close'].iloc[-2]
+            current_price = history['Close'].iloc[-1]
+            high_price = history['High'].iloc[-1]
+            low_price = history['Low'].iloc[-1]
+            volume = history['Volume'].iloc[-1]
+            
+            change = current_price - prev_close
+            change_percent = (change / prev_close) * 100
+            
+            results.append({
+                'ticker': ticker,
+                'hebrew_name': hebrew_name,
+                'current_price': current_price,
+                'change': change,
+                'change_percent': change_percent,
+                'high_price': high_price,
+                'low_price': low_price,
+                'volume': volume
+            })
         except Exception as e:
-            if attempt == 1:
-                print(f"שגיאה בשליפת {ticker}: {e}")
-            time.sleep(0.5)
-        
-    is_positive = change >= 0
-    emoji_status = "🟢" if is_positive else "🔴"
-    sign = "+" if is_positive else ""
-    
-    price_suffix = "$" if "BTC" not in ticker and "TA125" not in ticker else (" USD" if "BTC" in ticker else " נקודות")
-    
-    line = (
-        f"📊 {emoji_status} {hebrew_name} | {eng_name}\n"
-        f"💵 מחיר: {current_price:,.2f}{price_suffix}\n"
-        f"📊 שינוי: {sign}{change_percent:.2f}% ({sign}{change:,.2f})\n"
-        f"🔼 גבוה: {high_price:,.2f} | 📉 נמוך: {low_price:,.2f}\n"
-        f"📦 נפח: {volume:,}\n"
-        f"〰️〰️〰️〰️〰️〰️"
-    )
-    return (change_percent, line)
+            print(f"שגיאה בשליפת נתונים עבור {ticker}: {e}")
+            continue
 
-def generate_market_report(is_weekly_summary=False):
-    items = []
-    title_note = " 📊 (סיכום שבועי: מיום שני ועד מוצאי שבת)" if is_weekly_summary else ""
-    
-    # שליפה במקביל לכל 25 המניות בבת אחת
-    with ThreadPoolExecutor(max_workers=25) as executor:
-        futures = {
-            executor.submit(fetch_single_ticker, ticker, names[0], names[1], is_weekly_summary): ticker 
-            for ticker, names in TICKERS.items()
-        }
-        for future in as_completed(futures):
-            items.append(future.result())
+    if not results:
+        print("לא נמצאו נתונים לשליחה.")
+        return
+
+    # מיון התוצאות מהעולה ביותר ליורדת ביותר (לפי אחוז שינוי)
+    results.sort(key=lambda x: x['change_percent'], reverse=True)
+
+    mid_index = len(results) // 2
+    part1 = results[:mid_index]
+    part2 = results[mid_index:]
+
+    def format_block(items):
+        lines = []
+        for item in items:
+            is_pos = item['change'] >= 0
+            sign = "+" if is_pos else ""
+            emoji = "🟢" if is_pos else "🔴"
+            price_suffix = "$" if "BTC" not in item['ticker'] and "TA125" not in item['ticker'] else (" USD" if "BTC" in item['ticker'] else " נקודות")
             
-    items.sort(key=lambda x: x[0], reverse=False)
-    
-    report_lines = [line for _, line in items]
-    current_time = datetime.now().strftime("%d/%m/%Y %H:%M")
-    
-    split_index = 12
-    
-    header_part1 = "📊 סיכום שבועי (מוצאי שבת) חלק א':\n\n" if is_weekly_summary else "📊 סיכום סוף מסחר יומי חלק א':\n\n"
-    footer_part2 = "📊 סיכום שבועי חלק ב':\n\n" if is_weekly_summary else "📊 סיכום מניות חלק ב':\n\n"
-    
-    part1 = header_part1 + "\n".join(report_lines[:split_index])
-    part2 = footer_part2 + "\n".join(report_lines[split_index:]) + f"\n\n📅 {current_time}{title_note}"
-    
-    return part1, part2
+            line = (
+                f"📊 {emoji} {item['hebrew_name']} | {TICKERS[item['ticker']][1]}\n"
+                f"💵 מחיר: {item['current_price']:,.2f}{price_suffix}\n"
+                f"📊 שינוי: {sign}{item['change_percent']:.2f}% ({sign}{item['change']:,.2f})\n"
+                f"🔼 גבוה: {item['high_price']:,.2f} | 📉 נמוך: {item['low_price']:,.2f}\n"
+                f"📦 נפח: {int(item['volume']):,}\n"
+                f"〰️〰️〰️〰️〰️〰️"
+            )
+            lines.append(line)
+        return "\n".join(lines)
 
-def job_daily():
-    if not CHAT_ID:
-        return
+    current_date = datetime.now().strftime("%d/%m/%Y %H:%M")
+    
+    message1 = f"📊 <b>סיכום סוף מסחר חלק א':</b>\n\n" + format_block(part1)
+    message2 = f"📊 <b>סיכום מניות חלק ב':</b>\n\n" + format_block(part2) + f"\n\n📅 {current_date}"
+
     try:
-        print("מריץ סיכום יומי...")
-        part1, part2 = generate_market_report(is_weekly_summary=False)
-        bot.send_message(CHAT_ID, part1)
-        time.sleep(2)
-        bot.send_message(CHAT_ID, part2)
-        print("הסיכום היומי נשלח בהצלחה!")
+        bot.send_message(CHAT_ID, message1, parse_mode="HTML")
+        bot.send_message(CHAT_ID, message2, parse_mode="HTML")
+        print(f"הסיכום נשלח בהצלחה תוך {time.time() - start_time:.2f} שניות!")
     except Exception as e:
-        print(f"שגיאה בשליחה היומית: {e}")
-
-def job_weekly_saturday():
-    if not CHAT_ID:
-        return
-    try:
-        print("מריץ סיכום שבועי...")
-        part1, part2 = generate_market_report(is_weekly_summary=True)
-        bot.send_message(CHAT_ID, part1)
-        time.sleep(2)
-        bot.send_message(CHAT_ID, part2)
-        print("הסיכום השבועי נשלח בהצלחה!")
-    except Exception as e:
-        print(f"שגיאה בשליחה השבועית: {e}")
-
-# תזמון מוגדר להיום ב-23:00 ובמוצאי שבת ב-21:00
-schedule.every().day.at("23:00").do(job_daily)
-schedule.every().saturday.at("21:00").do(job_weekly_saturday)
+        print(f"שגיאה בשליחת ההודעות לטלגרם: {e}")
 
 if __name__ == '__main__':
-    print("הבוט רץ ברקע בצורה חלקה ויבצע את העדכון המלא היום ב-23:00 בדיוק...")
-    
-    while True:
-        schedule.run_pending()
-        time.sleep(30)
+    send_daily_summary()
