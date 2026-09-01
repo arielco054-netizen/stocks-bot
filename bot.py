@@ -47,6 +47,7 @@ def generate_market_report(is_weekly_summary=False):
             history = stock.history(period=period_str)
             
             if len(history) < 2:
+                print(f"אזהרה: מעט מדי היסטוריה עבור {ticker}")
                 continue
                 
             start_price = history['Close'].iloc[0] if is_weekly_summary else history['Close'].iloc[-2]
@@ -77,14 +78,17 @@ def generate_market_report(is_weekly_summary=False):
             print(f"שגיאה במניה {ticker}: {e}")
             continue
             
+    # מיון מהירידות החדות ביותר לעליות החזקות ביותר
     items.sort(key=lambda x: x[0], reverse=False)
     
     report_lines = [line for _, line in items]
     current_time = datetime.now().strftime("%d/%m/%Y %H:%M")
     
-    mid = len(report_lines) // 2
-    part1 = "\n".join(report_lines[:mid])
-    part2 = "\n".join(report_lines[mid:]) + f"\n\n📅 {current_time}{title_note}"
+    # וידוא חלוקה מדויקת: 12 פריטים בחלק א', והשאר (13) בחלק ב' כדי לסגור בדיוק על 25
+    split_index = 12 if len(report_lines) >= 12 else len(report_lines) // 2
+    
+    part1 = "\n".join(report_lines[:split_index])
+    part2 = "\n".join(report_lines[split_index:]) + f"\n\n📅 {current_time}{title_note}"
     
     return part1, part2
 
@@ -104,7 +108,7 @@ def send_daily_report():
         time.sleep(2)
         bot.send_message(CHAT_ID, footer_text + part2)
     except Exception as e:
-        print(f"שגיאה: {e}")
+        print(f"שגיאה בשליחת הדוח: {e}")
 
 if __name__ == '__main__':
     send_daily_report()
