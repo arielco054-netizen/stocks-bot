@@ -49,7 +49,8 @@ def fetch_single_ticker(ticker, hebrew_name, eng_name, is_weekly_summary):
     
     try:
         stock = yf.Ticker(ticker)
-        history = stock.history(period=period_str)
+        # שליפה מהירה עם timeout מובנה דרך ההיסטוריה
+        history = stock.history(period=period_str, timeout=5)
         
         if len(history) >= 1:
             current_price = history['Close'].iloc[-1]
@@ -66,7 +67,7 @@ def fetch_single_ticker(ticker, hebrew_name, eng_name, is_weekly_summary):
             change = current_price - start_price
             change_percent = (change / start_price) * 100 if start_price > 0 else 0.0
     except Exception as e:
-        print(f"שגיאה במניה {ticker}: {e}")
+        print(f"שגיאה מהירה במניה {ticker}: {e}")
         
     is_positive = change >= 0
     emoji_status = "🟢" if is_positive else "🔴"
@@ -88,8 +89,8 @@ def generate_market_report(is_weekly_summary=False):
     items = []
     title_note = " 📊 (סיכום שבועי: מיום שני ועד מוצאי שבת)" if is_weekly_summary else ""
     
-    # שליפה במקביל (Threads) לכל המניות בבת אחת - ירוץ תוך שניות בודדות!
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    # שליפה מקבילית של כל 25 המניות בבת אחת (רץ כמו הבזק)
+    with ThreadPoolExecutor(max_workers=25) as executor:
         futures = {
             executor.submit(fetch_single_ticker, ticker, names[0], names[1], is_weekly_summary): ticker 
             for ticker, names in TICKERS.items()
@@ -136,16 +137,13 @@ def job_weekly_saturday():
     except Exception as e:
         print(f"שגיאה בשליחה השבועית: {e}")
 
-# תזמון מדויק לפי שעון המערכת
+# תזמון מדויק לפי השעות שביקשת
 schedule.every().day.at("23:00").do(job_daily)
 schedule.every().saturday.at("21:00").do(job_weekly_saturday)
 
 if __name__ == '__main__':
-    print("הבוט המהיר (במקביל) רץ וממתין לתזמונים...")
-    
-    # אם תרצה לבדוק שליחה מידית עכשיו, הסר את הסולם (#) מהשורה הבאה:
-    # job_daily() 
+    print("הבוט המהיר במיוחד רץ וממתין לשעות היעוד (23:00 יומי / 21:00 שבת)...")
     
     while True:
         schedule.run_pending()
-        time.sleep(60)
+        time.sleep(30)
