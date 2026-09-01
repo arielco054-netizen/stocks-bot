@@ -52,29 +52,22 @@ def generate_market_report(is_weekly_summary=False):
         
         try:
             stock = yf.Ticker(ticker)
-            info = stock.info
-            live_price = info.get('currentPrice') or info.get('regularMarketPrice') or info.get('navPrice')
-            previous_close = info.get('previousClose') or info.get('regularMarketPreviousClose')
-
             history = stock.history(period=period_str)
             
             if len(history) >= 1:
-                if live_price:
-                    current_price = live_price
-                else:
-                    current_price = history['Close'].iloc[-1]
+                current_price = history['Close'].iloc[-1]
                 
                 if is_weekly_summary:
                     start_price = history['Close'].iloc[0]
                 else:
-                    start_price = previous_close if previous_close else history['Close'].iloc[-2]
+                    start_price = history['Close'].iloc[-2] if len(history) >= 2 else current_price
                 
                 high_price = history['High'].max() if is_weekly_summary else history['High'].iloc[-1]
                 low_price = history['Low'].min() if is_weekly_summary else history['Low'].iloc[-1]
                 volume = int(history['Volume'].sum()) if is_weekly_summary else int(history['Volume'].iloc[-1])
                 
                 change = current_price - start_price
-                change_percent = (change / start_price) * 100
+                change_percent = (change / start_price) * 100 if start_price > 0 else 0.0
             else:
                 raise Exception("אין נתונים מספיקים")
                 
@@ -143,16 +136,13 @@ def job_weekly_saturday():
         print(f"שגיאה בשליחה השבועית: {e}")
 
 # תזמון מדויק לפי שעון המערכת
-# סיכום יומי בכל יום בשעה 23:00 (אחרי סיום מסחר מלא)
 schedule.every().day.at("23:00").do(job_daily)
-
-# סיכום שבועי במוצאי שבת בשעה 21:00
 schedule.every().saturday.at("21:00").do(job_weekly_saturday)
 
 if __name__ == '__main__':
-    print("הבוט רץ וממתין לתזמונים...")
+    print("הבוט מהיר רץ וממתין לתזמונים...")
     
-    # אם תרצה לבדוק שליחה מידית בהפעלה הראשונה, הסר את הסולם (#) מהשורה הבאה:
+    # אם תרצה לבדוק שליחה מידית עכשיו, הסר את הסולם (#) מהשורה הבאה:
     # job_daily() 
     
     while True:
