@@ -82,14 +82,16 @@ def fetch_ticker_data(item, is_saturday):
         current_price = float(current_row["Close"])
         high_price = float(current_row["High"])
         low_price = float(current_row["Low"])
-        volume = int(current_row["Volume"]) if current_row["Volume"] == current_row["Volume"] else 0
+        
+        # טיפול בנפח מסחר במדדים (שבהם נפח המסחר לרוב לא מדווח או שווה ל-0)
+        volume_val = current_row["Volume"]
+        volume = int(volume_val) if (volume_val == volume_val and volume_val > 0) else 0
 
         if is_saturday:
             week_data = history[history.index.dayofweek < 5]
 
             if len(week_data) >= 2:
-                first_week_close = float(week_data.iloc[0]["Close"])
-                prev_close = first_week_close
+                prev_close = float(week_data.iloc[0]["Close"])
             else:
                 prev_close = float(history.iloc[-2]["Close"])
         else:
@@ -115,7 +117,7 @@ def fetch_ticker_data(item, is_saturday):
         }
 
     except Exception as e:
-        print(f"❌ {ticker}: {e}")
+        print(f"❌ שגיאה בטעינת {ticker}: {e}")
         return {
             "ticker": ticker,
             "hebrew_name": hebrew_name,
@@ -140,7 +142,7 @@ def format_price(item):
     if ticker == "BTC-USD":
         return f"{item['current_price']:,.2f} USD"
 
-    if ticker == "^TA125.TA":
+    if ticker == "^TA125.TA" or ticker == "^VIX":
         return f"{item['current_price']:,.2f} נקודות"
 
     return f"${item['current_price']:,.2f}"
@@ -181,6 +183,8 @@ def format_block(items, start_index):
             emoji = "⚪"
             status = ""
 
+        vol_text = f"{item['volume']:,}" if item['volume'] > 0 else "לא זמין"
+
         block = (
             f"<b>{index}.</b> 📊 {emoji} "
             f"{item['hebrew_name']} | {item['english_name']}\n"
@@ -188,7 +192,7 @@ def format_block(items, start_index):
             f"📊 שינוי: {format_change(item)}\n"
             f"🔼 גבוה: {item['high_price']:,.2f} | "
             f"📉 נמוך: {item['low_price']:,.2f}\n"
-            f"📦 נפח: {item['volume']:,}\n"
+            f"📦 נפח: {vol_text}\n"
             f"{status}\n"
             f"〰️〰️〰️〰️〰️〰️"
         )
@@ -230,22 +234,17 @@ def main():
         }
 
         for future in as_completed(future_map):
-
             ticker = future_map[future]
-
             try:
                 result = future.result()
                 results_by_ticker[ticker] = result
-
             except Exception as e:
                 print(f"❌ שגיאה ב-{ticker}: {e}")
 
     results = []
 
     for item in TICKERS:
-
         ticker = item[0]
-
         if ticker in results_by_ticker:
             results.append(results_by_ticker[ticker])
         else:
@@ -262,7 +261,7 @@ def main():
                 "success": False,
             })
 
-    # מיון לפי אחוז שינוי (מהנמוך לגבוה - מהיורדות ביותר לעולות ביותר)
+    # מיון לפי אחוז שינוי (מהנמוך לגבוה - יורדות ביותר למעלה, עולות ביותר למטה)
     results.sort(key=lambda x: x['change_percent'])
 
     mid_index = len(results) // 2
@@ -286,7 +285,6 @@ def main():
     )
 
     try:
-
         bot.send_message(
             CHAT_ID,
             message1,
