@@ -4,6 +4,7 @@ import yfinance as yf
 from datetime import datetime
 import time
 import schedule
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 TOKEN = os.getenv('BOT_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
@@ -37,64 +38,64 @@ TICKERS = {
     "^TA125.TA": ("מדד תל אביב 125", "TA-125 Index")
 }
 
+def fetch_single_ticker(ticker, hebrew_name, eng_name, is_weekly_summary):
+    period_str = "5d" if is_weekly_summary else "2d"
+    current_price = 1.00
+    high_price = 1.00
+    low_price = 1.00
+    volume = 0
+    change = 0.0
+    change_percent = 0.0
+    
+    try:
+        stock = yf.Ticker(ticker)
+        history = stock.history(period=period_str)
+        
+        if len(history) >= 1:
+            current_price = history['Close'].iloc[-1]
+            
+            if is_weekly_summary:
+                start_price = history['Close'].iloc[0]
+            else:
+                start_price = history['Close'].iloc[-2] if len(history) >= 2 else current_price
+            
+            high_price = history['High'].max() if is_weekly_summary else history['High'].iloc[-1]
+            low_price = history['Low'].min() if is_weekly_summary else history['Low'].iloc[-1]
+            volume = int(history['Volume'].sum()) if is_weekly_summary else int(history['Volume'].iloc[-1])
+            
+            change = current_price - start_price
+            change_percent = (change / start_price) * 100 if start_price > 0 else 0.0
+    except Exception as e:
+        print(f"שגיאה במניה {ticker}: {e}")
+        
+    is_positive = change >= 0
+    emoji_status = "🟢" if is_positive else "🔴"
+    sign = "+" if is_positive else ""
+    
+    price_suffix = "$" if "BTC" not in ticker and "TA125" not in ticker else (" USD" if "BTC" in ticker else " נקודות")
+    
+    line = (
+        f"📊 {emoji_status} {hebrew_name} | {eng_name}\n"
+        f"💵 מחיר: {current_price:,.2f}{price_suffix}\n"
+        f"📊 שינוי: {sign}{change_percent:.2f}% ({sign}{change:,.2f})\n"
+        f"🔼 גבוה: {high_price:,.2f} | 📉 נמוך: {low_price:,.2f}\n"
+        f"📦 נפח: {volume:,}\n"
+        f"〰️〰️〰️〰️〰️〰️"
+    )
+    return (change_percent, line)
+
 def generate_market_report(is_weekly_summary=False):
     items = []
-    period_str = "5d" if is_weekly_summary else "2d"
     title_note = " 📊 (סיכום שבועי: מיום שני ועד מוצאי שבת)" if is_weekly_summary else ""
     
-    for ticker, (hebrew_name, eng_name) in TICKERS.items():
-        current_price = 0.0
-        high_price = 0.0
-        low_price = 0.0
-        volume = 0
-        change = 0.0
-        change_percent = 0.0
-        
-        try:
-            stock = yf.Ticker(ticker)
-            history = stock.history(period=period_str)
-            
-            if len(history) >= 1:
-                current_price = history['Close'].iloc[-1]
-                
-                if is_weekly_summary:
-                    start_price = history['Close'].iloc[0]
-                else:
-                    start_price = history['Close'].iloc[-2] if len(history) >= 2 else current_price
-                
-                high_price = history['High'].max() if is_weekly_summary else history['High'].iloc[-1]
-                low_price = history['Low'].min() if is_weekly_summary else history['Low'].iloc[-1]
-                volume = int(history['Volume'].sum()) if is_weekly_summary else int(history['Volume'].iloc[-1])
-                
-                change = current_price - start_price
-                change_percent = (change / start_price) * 100 if start_price > 0 else 0.0
-            else:
-                raise Exception("אין נתונים מספיקים")
-                
-        except Exception as e:
-            print(f"שגיאה במניה {ticker}: {e}")
-            current_price = 1.00
-            high_price = 1.00
-            low_price = 1.00
-            volume = 0
-            change = 0.0
-            change_percent = 0.0
-            
-        is_positive = change >= 0
-        emoji_status = "🟢" if is_positive else "🔴"
-        sign = "+" if is_positive else ""
-        
-        price_suffix = "$" if "BTC" not in ticker and "TA125" not in ticker else (" USD" if "BTC" in ticker else " נקודות")
-        
-        line = (
-            f"📊 {emoji_status} {hebrew_name} | {eng_name}\n"
-            f"💵 מחיר: {current_price:,.2f}{price_suffix}\n"
-            f"📊 שינוי: {sign}{change_percent:.2f}% ({sign}{change:,.2f})\n"
-            f"🔼 גבוה: {high_price:,.2f} | 📉 נמוך: {low_price:,.2f}\n"
-            f"📦 נפח: {volume:,}\n"
-            f"〰️〰️〰️〰️〰️〰️"
-        )
-        items.append((change_percent, line))
+    # שליפה במקביל (Threads) לכל המניות בבת אחת - ירוץ תוך שניות בודדות!
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {
+            executor.submit(fetch_single_ticker, ticker, names[0], names[1], is_weekly_summary): ticker 
+            for ticker, names in TICKERS.items()
+        }
+        for future in as_completed(futures):
+            items.append(future.result())
             
     items.sort(key=lambda x: x[0], reverse=False)
     
@@ -140,7 +141,7 @@ schedule.every().day.at("23:00").do(job_daily)
 schedule.every().saturday.at("21:00").do(job_weekly_saturday)
 
 if __name__ == '__main__':
-    print("הבוט מהיר רץ וממתין לתזמונים...")
+    print("הבוט המהיר (במקביל) רץ וממתין לתזמונים...")
     
     # אם תרצה לבדוק שליחה מידית עכשיו, הסר את הסולם (#) מהשורה הבאה:
     # job_daily() 
