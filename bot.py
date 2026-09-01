@@ -62,8 +62,6 @@ def fetch_ticker_data(item, is_saturday):
     try:
         yf_ticker = yf.Ticker(ticker)
 
-        # לוקחים מספיק ימים כדי להתמודד גם עם חגים
-        # וסופי שבוע בלי להסתמך על מיקום קבוע כמו iloc[-5]
         history = yf_ticker.history(
             period="10d",
             interval="1d",
@@ -74,15 +72,10 @@ def fetch_ticker_data(item, is_saturday):
         if history is None or history.empty:
             raise ValueError("לא נמצאו נתונים")
 
-        # הסרת שורות ללא מחיר
         history = history.dropna(subset=["Close"])
 
         if len(history) < 2:
             raise ValueError("אין מספיק נתוני מסחר")
-
-        # =========================
-        # מחיר נוכחי / סגירה אחרונה
-        # =========================
 
         current_row = history.iloc[-1]
 
@@ -91,14 +84,7 @@ def fetch_ticker_data(item, is_saturday):
         low_price = float(current_row["Low"])
         volume = int(current_row["Volume"]) if current_row["Volume"] == current_row["Volume"] else 0
 
-        # =========================
-        # שינוי יומי / שבועי
-        # =========================
-
         if is_saturday:
-            # בשבת מציגים שינוי מצטבר מתחילת שבוע המסחר
-            current_date = history.index[-1].date()
-
             week_data = history[history.index.dayofweek < 5]
 
             if len(week_data) >= 2:
@@ -106,10 +92,7 @@ def fetch_ticker_data(item, is_saturday):
                 prev_close = first_week_close
             else:
                 prev_close = float(history.iloc[-2]["Close"])
-
         else:
-            # שינוי יומי אמיתי:
-            # סגירה אחרונה מול סגירת יום המסחר הקודם
             prev_close = float(history.iloc[-2]["Close"])
 
         if prev_close == 0:
@@ -133,9 +116,6 @@ def fetch_ticker_data(item, is_saturday):
 
     except Exception as e:
         print(f"❌ {ticker}: {e}")
-
-        # חשוב:
-        # הנכס נשאר בדוח גם אם Yahoo לא החזיר נתונים
         return {
             "ticker": ticker,
             "hebrew_name": hebrew_name,
@@ -238,7 +218,6 @@ def main():
 
     results_by_ticker = {}
 
-    # מקביליות - מהיר יותר
     with ThreadPoolExecutor(max_workers=10) as executor:
 
         future_map = {
@@ -260,10 +239,6 @@ def main():
 
             except Exception as e:
                 print(f"❌ שגיאה ב-{ticker}: {e}")
-
-    # =========================
-    # שומר על הסדר המקורי
-    # =========================
 
     results = []
 
@@ -287,15 +262,12 @@ def main():
                 "success": False,
             })
 
-    # =========================
-    # חלוקה ל-2 הודעות
-    # 25 נכסים:
-    # חלק א' = 13
-    # חלק ב' = 12
-    # =========================
+    # מיון לפי אחוז שינוי (מהנמוך לגבוה - מהיורדות ביותר לעולות ביותר)
+    results.sort(key=lambda x: x['change_percent'])
 
-    part1 = results[:13]
-    part2 = results[13:]
+    mid_index = len(results) // 2
+    part1 = results[:mid_index]
+    part2 = results[mid_index:]
 
     current_date = now_israel.strftime("%d/%m/%Y %H:%M")
 
@@ -310,12 +282,8 @@ def main():
         f"{report_title} | חלק ב'\n"
         f"🕐 עדכון: {current_date}\n"
         f"📦 סה״כ נכסים: {len(results)}\n\n"
-        f"{format_block(part2, 14)}"
+        f"{format_block(part2, mid_index + 1)}"
     )
-
-    # =========================
-    # שליחה לטלגרם
-    # =========================
 
     try:
 
