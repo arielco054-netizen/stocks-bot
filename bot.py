@@ -92,7 +92,6 @@ def send_daily_report():
     if not CHAT_ID:
         return
     try:
-        # בדיקה האם היום הוא שבת (5 = שבת)
         today_weekday = datetime.now().weekday()
         is_sat = (today_weekday == 5)
         
