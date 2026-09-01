@@ -40,34 +40,38 @@ TICKERS = {
 
 def fetch_single_ticker(ticker, hebrew_name, eng_name, is_weekly_summary):
     period_str = "5d" if is_weekly_summary else "2d"
-    current_price = 1.00
-    high_price = 1.00
-    low_price = 1.00
+    current_price = 0.00
+    high_price = 0.00
+    low_price = 0.00
     volume = 0
     change = 0.0
     change_percent = 0.0
     
-    try:
-        stock = yf.Ticker(ticker)
-        # שליפה מהירה עם timeout מובנה דרך ההיסטוריה
-        history = stock.history(period=period_str, timeout=5)
-        
-        if len(history) >= 1:
-            current_price = history['Close'].iloc[-1]
+    # ניסיון שליפה מבוקר (מקסימום 2 ניסיונות מהירים כדי לעולם לא להיתקע)
+    for attempt in range(2):
+        try:
+            stock = yf.Ticker(ticker)
+            history = stock.history(period=period_str, timeout=4)
             
-            if is_weekly_summary:
-                start_price = history['Close'].iloc[0]
-            else:
-                start_price = history['Close'].iloc[-2] if len(history) >= 2 else current_price
-            
-            high_price = history['High'].max() if is_weekly_summary else history['High'].iloc[-1]
-            low_price = history['Low'].min() if is_weekly_summary else history['Low'].iloc[-1]
-            volume = int(history['Volume'].sum()) if is_weekly_summary else int(history['Volume'].iloc[-1])
-            
-            change = current_price - start_price
-            change_percent = (change / start_price) * 100 if start_price > 0 else 0.0
-    except Exception as e:
-        print(f"שגיאה מהירה במניה {ticker}: {e}")
+            if not history.empty and len(history) >= 1:
+                current_price = float(history['Close'].iloc[-1])
+                
+                if is_weekly_summary:
+                    start_price = float(history['Close'].iloc[0])
+                else:
+                    start_price = float(history['Close'].iloc[-2]) if len(history) >= 2 else current_price
+                
+                high_price = float(history['High'].max() if is_weekly_summary else history['High'].iloc[-1])
+                low_price = float(history['Low'].min() if is_weekly_summary else history['Low'].iloc[-1])
+                volume = int(history['Volume'].sum() if is_weekly_summary else history['Volume'].iloc[-1])
+                
+                change = current_price - start_price
+                change_percent = (change / start_price) * 100 if start_price > 0 else 0.0
+                break # הצליח - יוצא מהלולאה מיד
+        except Exception as e:
+            if attempt == 1:
+                print(f"שגיאה בשליפת {ticker}: {e}")
+            time.sleep(0.5)
         
     is_positive = change >= 0
     emoji_status = "🟢" if is_positive else "🔴"
@@ -89,7 +93,7 @@ def generate_market_report(is_weekly_summary=False):
     items = []
     title_note = " 📊 (סיכום שבועי: מיום שני ועד מוצאי שבת)" if is_weekly_summary else ""
     
-    # שליפה מקבילית של כל 25 המניות בבת אחת (רץ כמו הבזק)
+    # שליפה במקביל לכל 25 המניות בבת אחת
     with ThreadPoolExecutor(max_workers=25) as executor:
         futures = {
             executor.submit(fetch_single_ticker, ticker, names[0], names[1], is_weekly_summary): ticker 
@@ -122,6 +126,7 @@ def job_daily():
         bot.send_message(CHAT_ID, part1)
         time.sleep(2)
         bot.send_message(CHAT_ID, part2)
+        print("הסיכום היומי נשלח בהצלחה!")
     except Exception as e:
         print(f"שגיאה בשליחה היומית: {e}")
 
@@ -129,20 +134,21 @@ def job_weekly_saturday():
     if not CHAT_ID:
         return
     try:
-        print("מריץ סיכום שבועי של מוצאי שבת...")
+        print("מריץ סיכום שבועי...")
         part1, part2 = generate_market_report(is_weekly_summary=True)
         bot.send_message(CHAT_ID, part1)
         time.sleep(2)
         bot.send_message(CHAT_ID, part2)
+        print("הסיכום השבועי נשלח בהצלחה!")
     except Exception as e:
         print(f"שגיאה בשליחה השבועית: {e}")
 
-# תזמון מדויק לפי השעות שביקשת
+# תזמון מוגדר להיום ב-23:00 ובמוצאי שבת ב-21:00
 schedule.every().day.at("23:00").do(job_daily)
 schedule.every().saturday.at("21:00").do(job_weekly_saturday)
 
 if __name__ == '__main__':
-    print("הבוט המהיר במיוחד רץ וממתין לשעות היעוד (23:00 יומי / 21:00 שבת)...")
+    print("הבוט רץ ברקע בצורה חלקה ויבצע את העדכון המלא היום ב-23:00 בדיוק...")
     
     while True:
         schedule.run_pending()
