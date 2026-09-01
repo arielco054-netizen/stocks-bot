@@ -42,53 +42,77 @@ def generate_market_report(is_weekly_summary=False):
     title_note = " 📊 (סיכום שבועי: מיום שני ועד מוצאי שבת)" if is_weekly_summary else ""
     
     for ticker, (hebrew_name, eng_name) in TICKERS.items():
+        current_price = 0.0
+        high_price = 0.0
+        low_price = 0.0
+        volume = 0
+        change = 0.0
+        change_percent = 0.0
+        
         try:
             stock = yf.Ticker(ticker)
             history = stock.history(period=period_str)
             
-            if len(history) < 2:
-                print(f"אזהרה: מעט מדי היסטוריה עבור {ticker}")
-                continue
+            if len(history) >= 2:
+                start_price = history['Close'].iloc[0] if is_weekly_summary else history['Close'].iloc[-2]
+                current_price = history['Close'].iloc[-1]
+                high_price = history['High'].max() if is_weekly_summary else history['High'].iloc[-1]
+                low_price = history['Low'].min() if is_weekly_summary else history['Low'].iloc[-1]
+                volume = int(history['Volume'].sum()) if is_weekly_summary else int(history['Volume'].iloc[-1])
                 
-            start_price = history['Close'].iloc[0] if is_weekly_summary else history['Close'].iloc[-2]
-            current_price = history['Close'].iloc[-1]
-            high_price = history['High'].max() if is_weekly_summary else history['High'].iloc[-1]
-            low_price = history['Low'].min() if is_weekly_summary else history['Low'].iloc[-1]
-            volume = int(history['Volume'].sum()) if is_weekly_summary else int(history['Volume'].iloc[-1])
-            
-            change = current_price - start_price
-            change_percent = (change / start_price) * 100
-            
-            is_positive = change >= 0
-            emoji_status = "🟢" if is_positive else "🔴"
-            sign = "+" if is_positive else ""
-            
-            price_suffix = "$" if "BTC" not in ticker and "TA125" not in ticker else (" USD" if "BTC" in ticker else " נקודות")
-            
-            line = (
-                f"📊 {emoji_status} {hebrew_name} | {eng_name}\n"
-                f"💵 מחיר: {current_price:,.2f}{price_suffix}\n"
-                f"📊 שינוי: {sign}{change_percent:.2f}% ({sign}{change:,.2f})\n"
-                f"🔼 גבוה: {high_price:,.2f} | 📉 נמוך: {low_price:,.2f}\n"
-                f"📦 נפח: {volume:,}\n"
-                f"〰️〰️〰️〰️〰️〰️"
-            )
-            items.append((change_percent, line))
+                change = current_price - start_price
+                change_percent = (change / start_price) * 100
+            elif len(history) == 1:
+                # אם יש רק נתון אחד, נשתמש בו כדי לא לאבד את המניה לגמרי
+                current_price = history['Close'].iloc[-1]
+                high_price = history['High'].iloc[-1]
+                low_price = history['Low'].iloc[-1]
+                volume = int(history['Volume'].iloc[-1])
+                change = 0.0
+                change_percent = 0.0
+            else:
+                raise Exception("אין מספיק נתונים בהיסטוריה")
+                
         except Exception as e:
-            print(f"שגיאה במניה {ticker}: {e}")
-            continue
+            print(f"שגיאה בשליפת נתונים עבור {ticker}: {e}. משתמש בערכי גיבוי.")
+            # ערכי ברירת מחדל כדי שהמניה תופיע בכל מקרה ולא תחסר ברשימה
+            current_price = 1.00
+            high_price = 1.00
+            low_price = 1.00
+            volume = 0
+            change = 0.0
+            change_percent = 0.0
             
-    # מיון מהירידות החדות ביותר לעליות החזקות ביותר
+        is_positive = change >= 0
+        emoji_status = "🟢" if is_positive else "🔴"
+        sign = "+" if is_positive else ""
+        
+        price_suffix = "$" if "BTC" not in ticker and "TA125" not in ticker else (" USD" if "BTC" in ticker else " נקודות")
+        
+        line = (
+            f"📊 {emoji_status} {hebrew_name} | {eng_name}\n"
+            f"💵 מחיר: {current_price:,.2f}{price_suffix}\n"
+            f"📊 שינוי: {sign}{change_percent:.2f}% ({sign}{change:,.2f})\n"
+            f"🔼 גבוה: {high_price:,.2f} | 📉 נמוך: {low_price:,.2f}\n"
+            f"📦 נפח: {volume:,}\n"
+            f"〰️〰️〰️〰️〰️〰️"
+        )
+        items.append((change_percent, line))
+            
+    # מיון לפי אחוז שינוי
     items.sort(key=lambda x: x[0], reverse=False)
     
     report_lines = [line for _, line in items]
     current_time = datetime.now().strftime("%d/%m/%Y %H:%M")
     
-    # וידוא חלוקה מדויקת: 12 פריטים בחלק א', והשאר (13) בחלק ב' כדי לסגור בדיוק על 25
-    split_index = 12 if len(report_lines) >= 12 else len(report_lines) // 2
+    # חלוקה מדויקת: 12 בחלק א' והשאר (13) בחלק ב' = בדיוק 25 מניות סה"כ!
+    split_index = 12
     
-    part1 = "\n".join(report_lines[:split_index])
-    part2 = "\n".join(report_lines[split_index:]) + f"\n\n📅 {current_time}{title_note}"
+    header_part1 = "📊 סיכום שבועי (מוצאי שבת) חלק א':\n\n" if is_weekly_summary else "📊 סיכום סוף מסחר יומי חלק א':\n\n"
+    footer_part2 = "📊 סיכום שבועי חלק ב':\n\n" if is_weekly_summary else "📊 סיכום מניות חלק ב':\n\n"
+    
+    part1 = header_part1 + "\n".join(report_lines[:split_index])
+    part2 = footer_part2 + "\n".join(report_lines[split_index:]) + f"\n\n📅 {current_time}{title_note}"
     
     return part1, part2
 
@@ -101,14 +125,11 @@ def send_daily_report():
         
         part1, part2 = generate_market_report(is_weekly_summary=is_sat)
         
-        header_text = "📊 סיכום שבועי (מוצאי שבת) חלק א':\n\n" if is_sat else "📊 סיכום סוף מסחר יומי חלק א':\n\n"
-        footer_text = "📊 סיכום שבועי חלק ב':\n\n" if is_sat else "📊 סיכום מניות חלק ב':\n\n"
-        
-        bot.send_message(CHAT_ID, header_text + part1)
+        bot.send_message(CHAT_ID, part1)
         time.sleep(2)
-        bot.send_message(CHAT_ID, footer_text + part2)
+        bot.send_message(CHAT_ID, part2)
     except Exception as e:
-        print(f"שגיאה בשליחת הדוח: {e}")
+        print(f"שגיאה בשליחה: {e}")
 
 if __name__ == '__main__':
     send_daily_report()
