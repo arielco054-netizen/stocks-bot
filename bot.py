@@ -3,6 +3,7 @@ import telebot
 import yfinance as yf
 from datetime import datetime
 import time
+import schedule
 
 TOKEN = os.getenv('BOT_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
@@ -51,8 +52,6 @@ def generate_market_report(is_weekly_summary=False):
         
         try:
             stock = yf.Ticker(ticker)
-            
-            # שליפת מידע מלא ומעודכן שכולל גם את נתוני הסגירה והמסחר המאוחר
             info = stock.info
             live_price = info.get('currentPrice') or info.get('regularMarketPrice') or info.get('navPrice')
             previous_close = info.get('previousClose') or info.get('regularMarketPreviousClose')
@@ -60,13 +59,11 @@ def generate_market_report(is_weekly_summary=False):
             history = stock.history(period=period_str)
             
             if len(history) >= 1:
-                # אם יש מחיר מעודכן מה-info ניקח אותו, אחרת מההיסטוריה
                 if live_price:
                     current_price = live_price
                 else:
                     current_price = history['Close'].iloc[-1]
                 
-                # בחירת בסיס ההשוואה (מחיר אתמול)
                 if is_weekly_summary:
                     start_price = history['Close'].iloc[0]
                 else:
@@ -121,20 +118,43 @@ def generate_market_report(is_weekly_summary=False):
     
     return part1, part2
 
-def send_daily_report():
+def job_daily():
     if not CHAT_ID:
         return
     try:
-        today_weekday = datetime.now().weekday()
-        is_sat = (today_weekday == 5)
-        
-        part1, part2 = generate_market_report(is_weekly_summary=is_sat)
-        
+        print("מריץ סיכום יומי...")
+        part1, part2 = generate_market_report(is_weekly_summary=False)
         bot.send_message(CHAT_ID, part1)
         time.sleep(2)
         bot.send_message(CHAT_ID, part2)
     except Exception as e:
-        print(f"שגיאה: {e}")
+        print(f"שגיאה בשליחה היומית: {e}")
+
+def job_weekly_saturday():
+    if not CHAT_ID:
+        return
+    try:
+        print("מריץ סיכום שבועי של מוצאי שבת...")
+        part1, part2 = generate_market_report(is_weekly_summary=True)
+        bot.send_message(CHAT_ID, part1)
+        time.sleep(2)
+        bot.send_message(CHAT_ID, part2)
+    except Exception as e:
+        print(f"שגיאה בשליחה השבועית: {e}")
+
+# תזמון מדויק לפי שעון המערכת
+# סיכום יומי בכל יום בשעה 23:00 (אחרי סיום מסחר מלא)
+schedule.every().day.at("23:00").do(job_daily)
+
+# סיכום שבועי במוצאי שבת בשעה 21:00
+schedule.every().saturday.at("21:00").do(job_weekly_saturday)
 
 if __name__ == '__main__':
-    send_daily_report()
+    print("הבוט רץ וממתין לתזמונים...")
+    
+    # אם תרצה לבדוק שליחה מידית בהפעלה הראשונה, הסר את הסולם (#) מהשורה הבאה:
+    # job_daily() 
+    
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
