@@ -39,7 +39,7 @@ TICKERS = {
 def generate_market_report(is_weekly_summary=False):
     items = []
     period_str = "5d" if is_weekly_summary else "2d"
-    title_note = " 📊 (סיכום שבועי: מיום שני ועד שבת)" if is_weekly_summary else ""
+    title_note = " 📊 (סיכום שבועי: מיום שני ועד מוצאי שבת)" if is_weekly_summary else ""
     
     for ticker, (hebrew_name, eng_name) in TICKERS.items():
         try:
@@ -92,12 +92,13 @@ def send_daily_report():
     if not CHAT_ID:
         return
     try:
+        # בדיקה האם היום הוא שבת (5 = שבת)
         today_weekday = datetime.now().weekday()
         is_sat = (today_weekday == 5)
         
         part1, part2 = generate_market_report(is_weekly_summary=is_sat)
         
-        header_text = "📊 סיכום שבועי (מיום שני ועד שבת) חלק א':\n\n" if is_sat else "📊 סיכום סוף מסחר חלק א':\n\n"
+        header_text = "📊 סיכום שבועי (מוצאי שבת) חלק א':\n\n" if is_sat else "📊 סיכום סוף מסחר יומי חלק א':\n\n"
         footer_text = "📊 סיכום שבועי חלק ב':\n\n" if is_sat else "📊 סיכום מניות חלק ב':\n\n"
         
         bot.send_message(CHAT_ID, header_text + part1)
