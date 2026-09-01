@@ -2,6 +2,7 @@ import os
 import telebot
 import yfinance as yf
 from datetime import datetime
+import time
 
 TOKEN = os.getenv('BOT_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
@@ -48,7 +49,6 @@ def generate_market_report(is_weekly_summary=False):
             if len(history) < 2:
                 continue
                 
-            # אם זה סיכום שבועי, ניקח את המחיר הראשון של השבוע (יום שני) מול המחיר האחרון (שבת)
             start_price = history['Close'].iloc[0] if is_weekly_summary else history['Close'].iloc[-2]
             current_price = history['Close'].iloc[-1]
             high_price = history['High'].max() if is_weekly_summary else history['High'].iloc[-1]
@@ -66,12 +66,6 @@ def generate_market_report(is_weekly_summary=False):
             
             line = (
                 f"📊 {emoji_status} {hebrew_name} | {eng_name}\n"
-                f"💵 מחיר סופי: {current_price:,.2f}{price_suffix}\n"
-                f"📊 שינוי שבועי: {sign}{change_percent:.2f}% ({sign}{change:,.2f})\n"
-                f"🔼 שיא: {high_price:,.2f} | 📉 שפל: {low_price:,.2f}\n"
-                f"📦 נפח מצטבר: {volume:,}\n"
-                f"〰️〰️〰️〰️〰️〰️" if is_weekly_summary else
-                f"📊 {emoji_status} {hebrew_name} | {eng_name}\n"
                 f"💵 מחיר: {current_price:,.2f}{price_suffix}\n"
                 f"📊 שינוי: {sign}{change_percent:.2f}% ({sign}{change:,.2f})\n"
                 f"🔼 גבוה: {high_price:,.2f} | 📉 נמוך: {low_price:,.2f}\n"
@@ -83,7 +77,6 @@ def generate_market_report(is_weekly_summary=False):
             print(f"שגיאה במניה {ticker}: {e}")
             continue
             
-    # מיון מהיורד ביותר (שלילי גבוה) לעולה ביותר (חיובי גבוה)
     items.sort(key=lambda x: x[0], reverse=False)
     
     report_lines = [line for _, line in items]
@@ -99,9 +92,8 @@ def send_daily_report():
     if not CHAT_ID:
         return
     try:
-        # בדיקה האם היום הוא שבת (5 = שבת לפי פייתון, או לפי הצורך)
         today_weekday = datetime.now().weekday()
-        is_sat = (today_weekday == 5) # 5 זה שבת
+        is_sat = (today_weekday == 5)
         
         part1, part2 = generate_market_report(is_weekly_summary=is_sat)
         
@@ -109,7 +101,6 @@ def send_daily_report():
         footer_text = "📊 סיכום שבועי חלק ב':\n\n" if is_sat else "📊 סיכום מניות חלק ב':\n\n"
         
         bot.send_message(CHAT_ID, header_text + part1)
-        import time
         time.sleep(2)
         bot.send_message(CHAT_ID, footer_text + part2)
     except Exception as e:
