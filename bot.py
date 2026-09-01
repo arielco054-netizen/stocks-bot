@@ -4,7 +4,6 @@ import telebot
 import yfinance as yf
 from datetime import datetime
 import pytz
-import schedule
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 TOKEN = os.getenv('BOT_TOKEN')
@@ -71,12 +70,12 @@ def fetch_single_ticker(ticker, hebrew_name):
     except Exception:
         return None
 
-def send_daily_summary():
-    if not CHAT_ID:
-        print("שגיאה: CHAT_ID לא מוגדר")
+def main():
+    if not CHAT_ID or not TOKEN:
+        print("שגיאה: BOT_TOKEN או CHAT_ID אינם מוגדרים")
         return
 
-    print("\n⏳ השעה הגיעה! אוסף נתונים...")
+    print("⏳ אוסף נתונים לשליחה מיידית...")
     start_time = time.time()
     
     results = []
@@ -135,17 +134,5 @@ def send_daily_summary():
     except Exception as e:
         print(f"❌ שגיאה בשליחה לטלגרם: {e}")
 
-# תזמון מדויק: שני עד שישי בשעה 23:00, ושבת בשעה 21:00
-schedule.every().monday.at("23:00", "Asia/Jerusalem").do(send_daily_summary)
-schedule.every().tuesday.at("23:00", "Asia/Jerusalem").do(send_daily_summary)
-schedule.every().wednesday.at("23:00", "Asia/Jerusalem").do(send_daily_summary)
-schedule.every().thursday.at("23:00", "Asia/Jerusalem").do(send_daily_summary)
-schedule.every().friday.at("23:00", "Asia/Jerusalem").do(send_daily_summary)
-schedule.every().saturday.at("21:00", "Asia/Jerusalem").do(send_daily_summary)
-
 if __name__ == '__main__':
-    print("🤖 הבוט פועל ברקע בשקט מלא ולא ישלח כלום עכשיו. ממתין לתזמונים שהוגדרו...")
-    
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
+    main()
