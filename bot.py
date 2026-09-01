@@ -3,41 +3,43 @@ import time
 import telebot
 import yfinance as yf
 from datetime import datetime
+import pytz
+import schedule
 
 TOKEN = os.getenv('BOT_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
 bot = telebot.TeleBot(TOKEN)
 
-# רשימת המניות והנכסים המלאה שלך
+# הגדרת אזור זמן של ישראל
+ISRAEL_TZ = pytz.timezone('Asia/Jerusalem')
+
+# 25 המניות והנכסים המדויקים שלך בלבד
 TICKERS = {
-    "AAPL": ("אפל", "Apple Inc."),
-    "TSLA": ("טסלה", "Tesla Inc."),
-    "MSFT": ("מיקרוסופט", "Microsoft Corporation"),
-    "NVDA": ("אנבידיה", "NVIDIA Corporation"),
-    "PLTR": ("פלנטיר טכנולוגיות", "Palantir Technologies Inc."),
-    "INTC": ("אינטל", "Intel Corporation"),
+    "MRNA": ("מודרנה", "Moderna Inc."),
+    "^VIX": ("מדד הפחד VIX", "CBOE Volatility Index"),
+    "MRK": ("מרק", "Merck & Co. Inc."),
+    "NFLX": ("נטפליקס", "Netflix Inc."),
+    "WMT": ("ולמארט", "Walmart Inc."),
+    "AMZN": ("אמזון", "Amazon.com Inc."),
+    "BA": ("בואינג", "The Boeing Company"),
+    "META": ("מטא פלטפורמס", "Meta Platforms Inc."),
     "PYPL": ("פייפאל", "PayPal Holdings Inc."),
     "GOOGL": ("אלפאבית / גוגל", "Alphabet Inc. (Google)"),
-    "AMZN": ("אמזון", "Amazon.com Inc."),
-    "META": ("מטא פלטפורמס", "Meta Platforms Inc."),
-    "NFLX": ("נטפליקס", "Netflix Inc."),
     "LMT": ("לוקהיד מרטין", "Lockheed Martin Corporation"),
-    "BA": ("בואינג", "The Boeing Company"),
-    "WMT": ("ולמארט", "Walmart Inc."),
-    "MRNA": ("מודרנה", "Moderna Inc."),
-    "MRK": ("מרק", "Merck & Co. Inc."),
+    "AAPL": ("אפל", "Apple Inc."),
     "MBLY": ("מובילאיי", "Mobileye Global Inc."),
+    "BTC-USD": ("ביטקוין", "Bitcoin USD"),
+    "^TA125.TA": ("מדד תל אביב 125", "TA-125 Index"),
+    "MSFT": ("מיקרוסופט", "Microsoft Corporation"),
+    "BMR": ("ב.מ.ר", "BMR"),
+    "TSLA": ("טסלה", "Tesla Inc."),
     "SMCI": ("סופר מיקרו", "Super Micro Computer"),
     "CHKP": ("צ'ק פוינט", "Check Point Software"),
-    "COIN": ("קוינבייס", "Coinbase Global Inc."),
-    "BTC-USD": ("ביטקוין", "Bitcoin USD"),
-    "^VIX": ("מדד הפחד VIX", "CBOE Volatility Index"),
+    "INTC": ("אינטל", "Intel Corporation"),
     "PROK": ("פרוק", "ProK"),
-    "BMR": ("ב.מ.ר", "BMR"),
-    "^TA125.TA": ("מדד תל אביב 125", "TA-125 Index"),
-    "AMD": ("אמדי / AMD", "Advanced Micro Devices, Inc."),
-    "QCOM": ("קוואלקום", "Qualcomm Inc."),
-    "DIS": ("דיסני", "The Walt Disney Company")
+    "PLTR": ("פלנטיר טכנולוגיות", "Palantir Technologies Inc."),
+    "COIN": ("קוינבייס", "Coinbase Global Inc."),
+    "NVDA": ("אנבידיה", "NVIDIA Corporation")
 }
 
 def send_daily_summary():
@@ -85,12 +87,15 @@ def send_daily_summary():
         print("לא נמצאו נתונים לשליחה.")
         return
 
-    # מיון התוצאות מהעולה ביותר ליורדת ביותר (לפי אחוז שינוי)
-    results.sort(key=lambda x: x['change_percent'], reverse=True)
+    # מיון מהיורדות ביותר (שליליות) ועד לעולות ביותר (חיוביות)
+    results.sort(key=lambda x: x['change_percent'])
 
     mid_index = len(results) // 2
     part1 = results[:mid_index]
     part2 = results[mid_index:]
+
+    # קבלת השעה המדויקת לפי שעון ישראל
+    current_date = datetime.now(ISRAEL_TZ).strftime("%d/%m/%Y %H:%M")
 
     def format_block(items):
         lines = []
@@ -106,15 +111,14 @@ def send_daily_summary():
                 f"📊 שינוי: {sign}{item['change_percent']:.2f}% ({sign}{item['change']:,.2f})\n"
                 f"🔼 גבוה: {item['high_price']:,.2f} | 📉 נמוך: {item['low_price']:,.2f}\n"
                 f"📦 נפח: {int(item['volume']):,}\n"
+                f"📅 עדכון: {current_date}\n"
                 f"〰️〰️〰️〰️〰️〰️"
             )
             lines.append(line)
         return "\n".join(lines)
-
-    current_date = datetime.now().strftime("%d/%m/%Y %H:%M")
     
     message1 = f"📊 <b>סיכום סוף מסחר חלק א':</b>\n\n" + format_block(part1)
-    message2 = f"📊 <b>סיכום מניות חלק ב':</b>\n\n" + format_block(part2) + f"\n\n📅 {current_date}"
+    message2 = f"📊 <b>סיכום מניות חלק ב':</b>\n\n" + format_block(part2)
 
     try:
         bot.send_message(CHAT_ID, message1, parse_mode="HTML")
@@ -123,5 +127,12 @@ def send_daily_summary():
     except Exception as e:
         print(f"שגיאה בשליחת ההודעות לטלגרם: {e}")
 
+# תזמון יומי אוטומטי: בכל יום בשעה 23:00 בדיוק לפי שעון ישראל
+schedule.every().day.at("23:00", "Asia/Jerusalem").do(send_daily_summary)
+
 if __name__ == '__main__':
-    send_daily_summary()
+    print("הבוט רץ ברקע וממתין לשעה 23:00 בכל יום (שעון ישראל)...")
+    
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
