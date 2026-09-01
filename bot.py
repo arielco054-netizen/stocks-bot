@@ -47,7 +47,7 @@ def send_daily_summary():
         print("שגיאה: CHAT_ID לא מוגדר")
         return
 
-    print("מתחיל לאסוף נתונים לסיכום המניות...")
+    print("\n⏳ מתחיל לאסוף נתונים ל-25 המניות וישלח מיד...")
     start_time = time.time()
     
     results = []
@@ -80,21 +80,21 @@ def send_daily_summary():
                 'volume': volume
             })
         except Exception as e:
-            print(f"שגיאה בשליפת נתונים עבור {ticker}: {e}")
+            print(f"⚠️ שגיאה בשליפת נתונים עבור {ticker}: {e}")
             continue
 
     if not results:
-        print("לא נמצאו נתונים לשליחה.")
+        print("❌ לא נמצאו נתונים לשליחה.")
         return
 
     # מיון מהיורדות ביותר (שליליות) ועד לעולות ביותר (חיוביות)
     results.sort(key=lambda x: x['change_percent'])
+    print("✅ איסוף ומיון המניות הושלם. שולח לטלגרם...")
 
     mid_index = len(results) // 2
     part1 = results[:mid_index]
     part2 = results[mid_index:]
 
-    # קבלת השעה המדויקת לפי שעון ישראל
     current_date = datetime.now(ISRAEL_TZ).strftime("%d/%m/%Y %H:%M")
 
     def format_block(items):
@@ -123,16 +123,21 @@ def send_daily_summary():
     try:
         bot.send_message(CHAT_ID, message1, parse_mode="HTML")
         bot.send_message(CHAT_ID, message2, parse_mode="HTML")
-        print(f"הסיכום נשלח בהצלחה תוך {time.time() - start_time:.2f} שניות!")
+        elapsed_time = time.time() - start_time
+        print(f"🚀 הסיכום נשלח בהצלחה! התהליך לקח {elapsed_time:.2f} שניות.")
     except Exception as e:
-        print(f"שגיאה בשליחת ההודעות לטלגרם: {e}")
+        print(f"❌ שגיאה בשליחת ההודעות לטלגרם: {e}")
 
-# תזמון יומי אוטומטי: בכל יום בשעה 23:00 בדיוק לפי שעון ישראל
+# תזמון יומי אוטומטי לשעה 23:00
 schedule.every().day.at("23:00", "Asia/Jerusalem").do(send_daily_summary)
 
 if __name__ == '__main__':
-    print("הבוט רץ ברקע וממתין לשעה 23:00 בכל יום (שעון ישראל)...")
+    print("🤖 מריץ את הבדיקה הראשונית מיד...")
     
+    # הפעלה ידנית מיד כשמריצים את הקובץ
+    send_daily_summary()
+    
+    print("\n⏳ מעבר למצב המתנה – הבוט ימשיך לרוץ ברקע וישלח אוטומטית כל יום בשעה 23:00.")
     while True:
         schedule.run_pending()
         time.sleep(1)
