@@ -40,19 +40,27 @@ TICKERS = {
     "NVDA": ("אנבידיה", "NVIDIA Corporation")
 }
 
-def fetch_single_ticker(ticker, hebrew_name):
+def fetch_ticker_data(ticker, hebrew_name, is_saturday):
     try:
         stock = yf.Ticker(ticker)
-        history = stock.history(period="5d" if "BTC" in ticker else "2d", timeout=5)
+        # בשבת נבקש היסטוריה של חודש כדי לוודא שנתפוס את תחילת השבוע המסחרי בצורה מדויקת
+        period = "1mo" if is_saturday else ("5d" if "BTC" in ticker else "2d")
+        history = stock.history(period=period, timeout=5)
         
         if len(history) < 2:
             return None
             
-        prev_close = history['Close'].iloc[-2]
         current_price = history['Close'].iloc[-1]
         high_price = history['High'].iloc[-1]
         low_price = history['Low'].iloc[-1]
         volume = history['Volume'].iloc[-1]
+        
+        if is_saturday and len(history) >= 5:
+            # בשבת: לוקחים את נקודת ההתחלה של תחילת השבוע המסחרי (5 ימי מסחר אחורה)
+            prev_close = history['Close'].iloc[-5]
+        else:
+            # ביום רגיל: לוקחים את סגירת יום המסחר הקודם
+            prev_close = history['Close'].iloc[-2]
         
         change = current_price - prev_close
         change_percent = (change / prev_close) * 100
@@ -75,14 +83,18 @@ def main():
         print("שגיאה: BOT_TOKEN או CHAT_ID אינם מוגדרים")
         return
 
-    print("⏳ אוסף נתונים לשליחה מיידית...")
+    now_israel = datetime.now(ISRAEL_TZ)
+    is_saturday = now_israel.weekday() == 5
+
+    report_type = "סיכום שבועי מצטבר (כל ימי המסחר)" if is_saturday else "סיכום יומי"
+    print(f"⏳ אוסף נתונים עבור {report_type}...")
     start_time = time.time()
     
     results = []
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = {
-            executor.submit(fetch_single_ticker, ticker, names[0]): ticker 
+            executor.submit(fetch_ticker_data, ticker, names[0], is_saturday): ticker 
             for ticker, names in TICKERS.items()
         }
         
@@ -101,7 +113,8 @@ def main():
     part1 = results[:mid_index]
     part2 = results[mid_index:]
 
-    current_date = datetime.now(ISRAEL_TZ).strftime("%d/%m/%Y %H:%M")
+    current_date = now_israel.strftime("%d/%m/%Y %H:%M")
+    title_suffix = "סיכום שבועי מצטבר" if is_saturday else "סיכום סוף מסחר יומי"
 
     def format_block(items):
         lines = []
@@ -123,8 +136,8 @@ def main():
             lines.append(line)
         return "\n".join(lines)
     
-    message1 = f"📊 <b>סיכום סוף מסחר חלק א':</b>\n\n" + format_block(part1)
-    message2 = f"📊 <b>סיכום מניות חלק ב':</b>\n\n" + format_block(part2)
+    message1 = f"📊 <b>{title_suffix} חלק א':</b>\n\n" + format_block(part1)
+    message2 = f"📊 <b>{title_suffix} חלק ב':</b>\n\n" + format_block(part2)
 
     try:
         bot.send_message(CHAT_ID, message1, parse_mode="HTML")
